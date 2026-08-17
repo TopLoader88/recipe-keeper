@@ -4,6 +4,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.6',
+    date: '2026-08-17',
+    notes: [
+      "New Food log tab: track what you actually eat. Log servings from any recipe into breakfast, lunch, dinner or a snack and watch your daily calories and protein / carbs / fat add up.",
+      "Recipes can now hold calories and macros per serving - shown on the recipe and scaled to your serving size. Add them in the editor, or they're pulled in automatically when a TikTok caption lists them.",
+      "Set a daily calorie goal and see how much you have left for the day.",
+      "Quick-add any food by name + calories without a recipe, and swipe away anything you logged by mistake."
+    ]
+  },
+  {
     version: '1.5',
     date: '2026-08-17',
     notes: [

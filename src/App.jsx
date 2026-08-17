@@ -7,7 +7,8 @@ import Editor from './components/Editor.jsx'
 import Settings from './components/Settings.jsx'
 import Grocery from './components/Grocery.jsx'
 import MealPlan from './components/MealPlan.jsx'
-import { IconBook, IconPlus, IconSettings, IconCart, IconCalendar } from './components/icons.jsx'
+import Diary from './components/Diary.jsx'
+import { IconBook, IconPlus, IconSettings, IconCart, IconCalendar, IconFlame } from './components/icons.jsx'
 import { getSetting, setSetting } from './lib/db.js'
 import { APP_VERSION } from './lib/version.js'
 import { entriesSince } from './lib/changelog.js'
@@ -52,6 +53,9 @@ export default function App() {
   } else if (path === '/plan') {
     page = <MealPlan />
     activeTab = 'plan'
+  } else if (path === '/diary') {
+    page = <Diary />
+    activeTab = 'diary'
   } else if (path === '/grocery') {
     page = <Grocery />
     activeTab = 'grocery'
@@ -82,6 +86,10 @@ export default function App() {
         <button className={activeTab === 'grocery' ? 'active' : ''} onClick={() => navigate('/grocery')}>
           <IconCart />
           <span>Grocery</span>
+        </button>
+        <button className={activeTab === 'diary' ? 'active' : ''} onClick={() => navigate('/diary')}>
+          <IconFlame />
+          <span>Log</span>
         </button>
         <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => navigate('/settings')}>
           <IconSettings />

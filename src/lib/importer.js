@@ -288,7 +288,8 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
         prepTime: fromCaption.raw.prepTime,
         cookTime: fromCaption.raw.cookTime,
         totalTime: fromCaption.raw.totalTime,
-        temperature: fromCaption.raw.temperature
+        temperature: fromCaption.raw.temperature,
+        nutrition: fromCaption.raw.nutrition
       },
       method: 'video oEmbed',
       confidence: 'low',

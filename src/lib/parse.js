@@ -9,6 +9,7 @@
 import { stripHtml, parseIngredient } from './normalize.js'
 import { parseDuration } from './format.js'
 import { detectVideo } from './video.js'
+import { extractNutrition } from './nutrition.js'
 
 /* ---------- JSON-LD ---------- */
 
@@ -198,6 +199,7 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
   const instructions = node?.recipeInstructions ?? node?.instructions ?? []
   const tempBlob = [firstString(node?.description) || og.description].concat(listOf(instructions).map((v) => (typeof v === 'string' ? v : v?.text || v?.name || ''))).join('  ')
   const temperature = extractTemperature(tempBlob)
+  const nutrition = extractNutrition(tempBlob)
 
   const videoNode = node?.video ? (Array.isArray(node.video) ? node.video[0] : node.video) : null
   const videoUrl =
@@ -214,6 +216,7 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
     cookTime: node?.cookTime ?? null,
     totalTime: node?.totalTime ?? null,
     temperature,
+    nutrition,
     ingredients,
     instructions,
     keywords: node?.keywords ?? [],
@@ -337,6 +340,7 @@ export function parseTextRecipe(input, sourceUrl = '') {
   const text = stripHtml(String(input || ''))
   const times = extractTimes(text)
   const temperature = extractTemperature(text)
+  const nutrition = extractNutrition(text)
   const rawLines = text.split(/\r?\n/).map((l) => l.replace(LEADING_DECOR, '').trim())
 
   const tags = []
@@ -405,6 +409,7 @@ export function parseTextRecipe(input, sourceUrl = '') {
       cookTime: times.cookTime,
       totalTime: times.totalTime,
       temperature,
+      nutrition,
       ingredients,
       instructions: steps,
       notes: notes.join('\n'),

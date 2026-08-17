@@ -6,10 +6,11 @@
    settings – small key/value preferences
    grocery  – the shopping list (items grouped by store section)
    mealplan – planned meals per day/slot
+   diary    – food log: servings eaten per day, with resolved calories/macros
 */
 
 const DB_NAME = 'recipe-keeper'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise = null
 
@@ -36,6 +37,10 @@ export function openDB() {
       if (!db.objectStoreNames.contains('mealplan')) {
         const mp = db.createObjectStore('mealplan', { keyPath: 'id' })
         mp.createIndex('date', 'date')
+      }
+      if (!db.objectStoreNames.contains('diary')) {
+        const di = db.createObjectStore('diary', { keyPath: 'id' })
+        di.createIndex('date', 'date')
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -225,6 +230,28 @@ export async function clearMealPlan() {
   emit()
 }
 
+/* ---------- food diary ---------- */
+
+export async function getAllDiary() {
+  return (await withStore('diary', 'readonly', (store) => promisify(store.getAll()))) || []
+}
+
+export async function putDiary(entry) {
+  await withStore('diary', 'readwrite', (store) => promisify(store.put(entry)))
+  persistOnce()
+  emit()
+}
+
+export async function deleteDiary(id) {
+  await withStore('diary', 'readwrite', (store) => promisify(store.delete(id)))
+  emit()
+}
+
+export async function clearDiary() {
+  await withStore('diary', 'readwrite', (store) => promisify(store.clear()))
+  emit()
+}
+
 /* ---------- housekeeping ---------- */
 
 export async function clearAllData() {
@@ -232,6 +259,7 @@ export async function clearAllData() {
   await withStore('sources', 'readwrite', (store) => promisify(store.clear()))
   await withStore('grocery', 'readwrite', (store) => promisify(store.clear()))
   await withStore('mealplan', 'readwrite', (store) => promisify(store.clear()))
+  await withStore('diary', 'readwrite', (store) => promisify(store.clear()))
   emit()
 }
 
