@@ -7,6 +7,7 @@
    Whatever comes back is loose/raw — normalize.js decides the house style. */
 
 import { stripHtml, parseIngredient } from './normalize.js'
+import { parseDuration } from './format.js'
 import { detectVideo } from './video.js'
 
 /* ---------- JSON-LD ---------- */
@@ -247,6 +248,27 @@ const SECTION_HEAD = /^(?:#+\s*)?for the .{2,40}\s*:?\s*$/i
 
 const LEADING_DECOR = /^[\s\p{Extended_Pictographic}☀-➿•·▢□◦‣\-–—*+>]+/u
 
+/* A caption or transcript often mentions timing in passing ("ready in 30
+   minutes", "bake for 25 min"). Pull those out so a video import can show a
+   cook time on its card the same way a schema.org recipe does. */
+const DUR = String.raw`\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)\b(?:\s*(?:and\s+)?\d+\s*(?:minutes?|mins?|m)\b)?`
+
+function labelledTime(text, label) {
+  const re = new RegExp(String.raw`\b(?:${label})\b[^\d\n]{0,14}(${DUR})`, "i")
+  const m = text.match(re)
+  return m ? parseDuration(m[1]) : null
+}
+
+/** Best-effort prep/cook/total minutes from free text that names them. */
+export function extractTimes(text) {
+  const t = String(text || "")
+  return {
+    prepTime: labelledTime(t, "prep(?:aration)?"),
+    cookTime: labelledTime(t, "cook(?:ing)?|bake[sd]?|baking|roast(?:ing)?"),
+    totalTime: labelledTime(t, "total|ready|done|takes?")
+  }
+}
+
 function looksLikeIngredient(line) {
   if (line.length > 90) return false
   if (/^\d+(?:[.,:]\d+)?\s*[.)]\s/.test(line)) return false // "1) Do the thing"
@@ -264,6 +286,7 @@ function looksLikeIngredient(line) {
  */
 export function parseTextRecipe(input, sourceUrl = '') {
   const text = stripHtml(String(input || ''))
+  const times = extractTimes(text)
   const rawLines = text.split(/\r?\n/).map((l) => l.replace(LEADING_DECOR, '').trim())
 
   const tags = []
@@ -328,6 +351,9 @@ export function parseTextRecipe(input, sourceUrl = '') {
     raw: {
       title,
       description: '',
+      prepTime: times.prepTime,
+      cookTime: times.cookTime,
+      totalTime: times.totalTime,
       ingredients,
       instructions: steps,
       notes: notes.join('\n'),

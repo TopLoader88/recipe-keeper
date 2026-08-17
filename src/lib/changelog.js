@@ -4,6 +4,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.3',
+    date: '2026-08-17',
+    notes: [
+      'Recipe cards now show a cook time when the video mentions one (e.g. "ready in 30 minutes").',
+      "No time detected? Open the recipe and tap 'Add cook time' to set it yourself."
+    ]
+  },
+  {
     version: '1.2',
     date: '2026-08-17',
     notes: [

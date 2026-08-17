@@ -530,3 +530,15 @@ button.chip:hover { background: var(--surface-hover); }
 .whatsnew-ver { font-weight: 700; font-size: 0.82rem; color: var(--accent); background: var(--accent-dim); padding: 1px 8px; border-radius: 999px; }
 .whatsnew-list { margin: 0; padding-left: 18px; }
 .whatsnew-list li { font-size: 0.86rem; color: var(--text); margin: 4px 0; line-height: 1.45; }
+
+/* cook-time add affordance (video imports with no detected time) */
+.meta-item.add-meta {
+  background: none;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+.meta-item.add-meta:hover { color: var(--text); border-color: var(--text-tertiary); }
+.time-input { width: 56px; text-align: center; padding: 2px 6px; font-size: 0.75rem; min-height: 0; }

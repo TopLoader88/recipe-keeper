@@ -284,7 +284,10 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
         keywords: fromCaption.raw.keywords,
         image: '',
         author: oembed.author || '',
-        siteName: oembed.providerName || hostnameOf(clean)
+        siteName: oembed.providerName || hostnameOf(clean),
+        prepTime: fromCaption.raw.prepTime,
+        cookTime: fromCaption.raw.cookTime,
+        totalTime: fromCaption.raw.totalTime
       },
       method: 'video oEmbed',
       confidence: 'low',

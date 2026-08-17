@@ -19,6 +19,7 @@ export default function RecipeView({ id }) {
   const [loading, setLoading] = useState(true)
   const [scale, setScale] = useState(1)
   const [editingServings, setEditingServings] = useState(false)
+  const [editingTime, setEditingTime] = useState(false)
   const [checked, setChecked] = useState({})
   const [doneSteps, setDoneSteps] = useState({})
   const [showSheet, setShowSheet] = useState(false)
@@ -123,6 +124,16 @@ export default function RecipeView({ id }) {
     }
   }
 
+  async function commitTime(value) {
+    setEditingTime(false)
+    const n = Math.round(Number(value))
+    if (!Number.isFinite(n) || n <= 0) return
+    const updated = { ...recipe, cookMinutes: n, totalMinutes: (recipe.prepMinutes || 0) + n }
+    await putRecipe(updated)
+    setRecipe(updated)
+    scheduleAutoBackup()
+  }
+
   function toggleIngredient(idx) {
     setChecked((prev) => ({ ...prev, [idx]: !prev[idx] }))
   }
@@ -198,6 +209,31 @@ export default function RecipeView({ id }) {
         )}
         {!recipe.prepMinutes && !recipe.cookMinutes && recipe.totalMinutes && (
           <span className="meta-item"><IconClock /> {formatMinutes(recipe.totalMinutes)}</span>
+        )}
+        {!recipe.prepMinutes && !recipe.cookMinutes && !recipe.totalMinutes && (
+          editingTime ? (
+            <span className="meta-item">
+              <IconClock />
+              <input
+                className="input time-input"
+                type="number"
+                min="1"
+                step="1"
+                autoFocus
+                placeholder="min"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitTime(e.currentTarget.value) }
+                  else if (e.key === 'Escape') setEditingTime(false)
+                }}
+                onBlur={(e) => commitTime(e.currentTarget.value)}
+              />
+              min
+            </span>
+          ) : (
+            <button className="meta-item add-meta" onClick={() => setEditingTime(true)}>
+              <IconClock /> Add cook time
+            </button>
+          )
         )}
       </div>
 
