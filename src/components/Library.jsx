@@ -4,7 +4,7 @@ import { useRouter } from '../hooks/useRouter.js'
 import { putRecipe } from '../lib/db.js'
 import { formatMinutes } from '../lib/format.js'
 import { interpretShare } from '../lib/share-target.js'
-import { IconSearch, IconHeart, IconHeartFilled, IconClock, IconBook, IconPlay } from './icons.jsx'
+import { IconSearch, IconHeart, IconHeartFilled, IconClock, IconBook, IconPlay, IconThermometer } from './icons.jsx'
 
 export default function Library() {
   const { recipes, loading } = useRecipes()
@@ -128,6 +128,7 @@ export default function Library() {
                 </button>
                 <div className="meta">
                   {recipe.totalMinutes && <span><IconClock />{formatMinutes(recipe.totalMinutes)}</span>}
+                  {recipe.temperature && <span><IconThermometer />{String(recipe.temperature).split(' (')[0]}</span>}
                   {recipe.source?.siteName && <span>{recipe.source.siteName}</span>}
                 </div>
               </div>

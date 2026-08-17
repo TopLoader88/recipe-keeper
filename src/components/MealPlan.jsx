@@ -47,13 +47,30 @@ export default function MealPlan() {
     showToast(`Added to ${slotLabel(ctx.slot)}`)
   }
 
+  async function addCustom(text) {
+    const ctx = picker
+    setPicker(null)
+    if (!ctx || !text) return
+    await putMealPlan({
+      id: newId(),
+      date: ctx.date,
+      slot: ctx.slot,
+      recipeId: null,
+      title: text,
+      image: null,
+      custom: true,
+      createdAt: Date.now()
+    })
+    showToast(`Added to ${slotLabel(ctx.slot)}`)
+  }
+
   async function removeEntry(id) { await deleteMealPlan(id) }
 
   async function addWeekToGrocery() {
     const isoSet = new Set(days.map(toISODate))
     const weekEntries = entries.filter((e) => isoSet.has(e.date))
     if (!weekEntries.length) { showToast('No meals planned this week'); return }
-    const ids = [...new Set(weekEntries.map((e) => e.recipeId))]
+    const ids = [...new Set(weekEntries.map((e) => e.recipeId).filter(Boolean))]
     const recipes = await Promise.all(ids.map((id) => getRecipe(id)))
     const byId = new Map(recipes.filter(Boolean).map((r) => [r.id, r]))
     let list = await getAllGrocery()
@@ -133,8 +150,8 @@ export default function MealPlan() {
                     <div className="slot-label">{slot.emoji} {slot.label}</div>
                     <div className="slot-body">
                       {list.map((e) => (
-                        <div key={e.id} className="plan-chip">
-                          <button className="plan-open" onClick={() => navigate(`/recipe/${e.recipeId}`)}>
+                        <div key={e.id} className={`plan-chip ${e.recipeId ? '' : 'custom'}`}>
+                          <button className="plan-open" onClick={() => e.recipeId && navigate(`/recipe/${e.recipeId}`)}>
                             {e.title}
                           </button>
                           <button className="plan-x" onClick={() => removeEntry(e.id)} aria-label="Remove"><IconX /></button>
@@ -163,6 +180,7 @@ export default function MealPlan() {
         <RecipePicker
           title={`Add to ${slotLabel(picker.slot)}`}
           onPick={addEntry}
+          onWriteIn={addCustom}
           onClose={() => setPicker(null)}
         />
       )}

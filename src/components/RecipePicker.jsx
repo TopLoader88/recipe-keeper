@@ -5,9 +5,10 @@ import { IconSearch, IconX, IconBook, IconClock, IconPlay } from './icons.jsx'
 
 /* A bottom sheet that lists saved recipes so the meal planner can drop one into
    a day/slot. Stateless about where it lands - the caller passes onPick. */
-export default function RecipePicker({ title = 'Add a recipe', onPick, onClose }) {
+export default function RecipePicker({ title = 'Add a recipe', onPick, onClose, onWriteIn }) {
   const { recipes } = useRecipes()
   const [query, setQuery] = useState('')
+  const [writein, setWritein] = useState('')
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -36,6 +37,19 @@ export default function RecipePicker({ title = 'Add a recipe', onPick, onClose }
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        {onWriteIn && (
+          <div className="picker-writein">
+            <input
+              className="input"
+              type="text"
+              placeholder="Or write in your own (e.g. Leftovers)"
+              value={writein}
+              onChange={(e) => setWritein(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = writein.trim(); if (v) onWriteIn(v) } }}
+            />
+            <button className="btn small" disabled={!writein.trim()} onClick={() => { const v = writein.trim(); if (v) onWriteIn(v) }}>Add</button>
+          </div>
+        )}
         {filtered.length === 0 ? (
           <div className="picker-empty">
             <IconBook />

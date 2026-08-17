@@ -101,3 +101,7 @@ export function IconExternalLink(props) {
 export function IconListPlus(props) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="11" y1="6" x2="21" y2="6"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="17" y2="18"/><line x1="4" y1="9" x2="4" y2="15"/><line x1="1" y1="12" x2="7" y2="12"/></svg>
 }
+
+export function IconThermometer(props) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+}

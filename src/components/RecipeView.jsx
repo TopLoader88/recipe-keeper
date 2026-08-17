@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getRecipe, getSource, putRecipe, deleteRecipe, getAllGrocery, putGroceryBulk, putMealPlan } from '../lib/db.js'
-import { formatIngredient } from '../lib/normalize.js'
+import { formatIngredient, normalizeTemperatures } from '../lib/normalize.js'
+import { extractTemperature } from '../lib/parse.js'
 import { formatMinutes, formatNumber } from '../lib/format.js'
 import { shareRecipe } from '../lib/share.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
@@ -12,7 +13,7 @@ import ConfirmSheet from './ConfirmSheet.jsx'
 import {
   IconChevronLeft, IconClock, IconUsers, IconEdit, IconShare,
   IconTrash, IconHeart, IconHeartFilled, IconMinus, IconPlus, IconPlay, IconX,
-  IconCart, IconCalendar
+  IconCart, IconCalendar, IconThermometer
 } from './icons.jsx'
 
 export default function RecipeView({ id }) {
@@ -23,6 +24,7 @@ export default function RecipeView({ id }) {
   const [scale, setScale] = useState(1)
   const [editingServings, setEditingServings] = useState(false)
   const [editingTime, setEditingTime] = useState(false)
+  const [editingTemp, setEditingTemp] = useState(false)
   const [planOpen, setPlanOpen] = useState(false)
   const [checked, setChecked] = useState({})
   const [doneSteps, setDoneSteps] = useState({})
@@ -138,17 +140,41 @@ export default function RecipeView({ id }) {
     scheduleAutoBackup()
   }
 
+  async function commitTemp(value) {
+    setEditingTemp(false)
+    const raw = String(value || '').trim()
+    if (!raw) return
+    let canonical = extractTemperature(raw)
+    if (!canonical) {
+      const n = parseInt(raw, 10)
+      if (!Number.isFinite(n) || n < 90 || n > 550) return
+      canonical = `${n}°${n >= 250 ? 'F' : 'C'}`
+    }
+    const updated = { ...recipe, temperature: normalizeTemperatures(canonical) }
+    await putRecipe(updated)
+    setRecipe(updated)
+    scheduleAutoBackup()
+  }
+
   async function addToGrocery() {
     let list = await getAllGrocery()
     let added = 0
+    let skipped = 0
+    let i = -1
     for (const ing of recipe.ingredients || []) {
+      i++
       const line = lineFromIngredient(ing, scale)
       if (!line) continue
+      if (checked[i]) { skipped++; continue }
       list = addLine(list, line, { source: recipe.title })
       added++
     }
     await putGroceryBulk(list)
-    showToast(added ? `Added ${added} item${added > 1 ? 's' : ''} to grocery` : 'No ingredients to add')
+    if (added) {
+      showToast(`Added ${added} item${added > 1 ? 's' : ''}${skipped ? ` · skipped ${skipped} you have` : ''}`)
+    } else {
+      showToast(skipped ? 'Everything was checked off already' : 'No ingredients to add')
+    }
   }
 
   async function planTo(dateIso, slot) {
@@ -259,6 +285,30 @@ export default function RecipeView({ id }) {
             </button>
           )
         )}
+        {recipe.temperature ? (
+          <span className="meta-item"><IconThermometer /> {recipe.temperature}</span>
+        ) : (
+          editingTemp ? (
+            <span className="meta-item">
+              <IconThermometer />
+              <input
+                className="input time-input"
+                type="text"
+                autoFocus
+                placeholder="400°F"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitTemp(e.currentTarget.value) }
+                  else if (e.key === 'Escape') setEditingTemp(false)
+                }}
+                onBlur={(e) => commitTemp(e.currentTarget.value)}
+              />
+            </span>
+          ) : (
+            <button className="meta-item add-meta" onClick={() => setEditingTemp(true)}>
+              <IconThermometer /> Add temp
+            </button>
+          )
+        )}
       </div>
 
       {recipe.description && <p className="recipe-desc">{recipe.description}</p>}
@@ -321,6 +371,7 @@ export default function RecipeView({ id }) {
             <h2 className="section-title">Ingredients</h2>
             <button className="link-btn small" onClick={addToGrocery}><IconCart /> Add to list</button>
           </div>
+          <p className="list-hint">Tick off what you already have — those are skipped when adding to your list.</p>
           <ul className="checklist">
             {recipe.ingredients.map((ing, i) => (
               <li key={i}>

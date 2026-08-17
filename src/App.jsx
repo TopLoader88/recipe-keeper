@@ -11,6 +11,7 @@ import { IconBook, IconPlus, IconSettings, IconCart, IconCalendar } from './comp
 import { getSetting, setSetting } from './lib/db.js'
 import { APP_VERSION } from './lib/version.js'
 import { entriesSince } from './lib/changelog.js'
+import { backfillMetadata } from './lib/migrate.js'
 import WhatsNew from './components/WhatsNew.jsx'
 
 export default function App() {
@@ -27,6 +28,8 @@ export default function App() {
     })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => { backfillMetadata() }, [])
 
   function closeWhatsNew() {
     setWhatsNew(null)

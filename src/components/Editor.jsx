@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getRecipe, putRecipe } from '../lib/db.js'
 import { blankRecipe } from '../lib/importer.js'
-import { ingredientsToText, stepsToText, textToIngredients, textToSteps } from '../lib/normalize.js'
+import { ingredientsToText, stepsToText, textToIngredients, textToSteps, normalizeTemperatures } from '../lib/normalize.js'
+import { extractTemperature } from '../lib/parse.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
 import { detectVideo } from '../lib/video.js'
 import { useRouter } from '../hooks/useRouter.js'
@@ -17,6 +18,7 @@ export default function Editor({ id }) {
   const [servings, setServings] = useState('')
   const [prepMinutes, setPrepMinutes] = useState('')
   const [cookMinutes, setCookMinutes] = useState('')
+  const [temperature, setTemperature] = useState('')
   const [ingredientsText, setIngredientsText] = useState('')
   const [stepsText, setStepsText] = useState('')
   const [tags, setTags] = useState('')
@@ -42,6 +44,7 @@ export default function Editor({ id }) {
       setServings(r.servings != null ? String(r.servings) : '')
       setPrepMinutes(r.prepMinutes != null ? String(r.prepMinutes) : '')
       setCookMinutes(r.cookMinutes != null ? String(r.cookMinutes) : '')
+      setTemperature(r.temperature || '')
       setIngredientsText(ingredientsToText(r.ingredients))
       setStepsText(stepsToText(r.steps))
       setTags((r.tags || []).join(', '))
@@ -60,15 +63,19 @@ export default function Editor({ id }) {
     const servingsNum = servings ? Number(servings) : null
     const prepNum = prepMinutes ? Number(prepMinutes) : null
     const cookNum = cookMinutes ? Number(cookMinutes) : null
+    let tempStr = temperature.trim()
+    if (tempStr) tempStr = normalizeTemperatures(extractTemperature(tempStr) || tempStr)
 
     const recipe = {
       ...(original || {}),
       title: title.trim() || 'Untitled recipe',
+      userEdited: true,
       description: description.trim(),
       servings: servingsNum && Number.isFinite(servingsNum) ? servingsNum : null,
       prepMinutes: prepNum && Number.isFinite(prepNum) ? prepNum : null,
       cookMinutes: cookNum && Number.isFinite(cookNum) ? cookNum : null,
       totalMinutes: (prepNum || 0) + (cookNum || 0) || null,
+      temperature: tempStr || null,
       ingredients,
       steps,
       tags: parsedTags.slice(0, 12),
@@ -153,6 +160,10 @@ export default function Editor({ id }) {
           <div className="field">
             <label>Cook (min)</label>
             <input className="input" type="number" min="0" value={cookMinutes} onChange={(e) => setCookMinutes(e.target.value)} placeholder="30" />
+          </div>
+          <div className="field">
+            <label>Oven temp</label>
+            <input className="input" type="text" value={temperature} onChange={(e) => setTemperature(e.target.value)} placeholder="400°F" />
           </div>
         </div>
 

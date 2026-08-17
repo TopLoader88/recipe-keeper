@@ -196,6 +196,8 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
 
   const ingredients = listOf(node?.recipeIngredient || node?.ingredients).map((v) => firstString(v)).filter(Boolean)
   const instructions = node?.recipeInstructions ?? node?.instructions ?? []
+  const tempBlob = [firstString(node?.description) || og.description].concat(listOf(instructions).map((v) => (typeof v === 'string' ? v : v?.text || v?.name || ''))).join('  ')
+  const temperature = extractTemperature(tempBlob)
 
   const videoNode = node?.video ? (Array.isArray(node.video) ? node.video[0] : node.video) : null
   const videoUrl =
@@ -211,6 +213,7 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
     prepTime: node?.prepTime ?? null,
     cookTime: node?.cookTime ?? null,
     totalTime: node?.totalTime ?? null,
+    temperature,
     ingredients,
     instructions,
     keywords: node?.keywords ?? [],
@@ -269,6 +272,52 @@ export function extractTimes(text) {
   }
 }
 
+/* Oven temperatures rarely live in schema.org fields, but captions and steps say
+   them plainly ("bake at 400°F", "180C", "gas mark 6"). Pull one out so a card can
+   show it next to the cook time. Returns a canonical single-scale string like
+   "400°F"; normalize.js adds the converted scale. */
+const GAS_MARK_F = { '1': 275, '2': 300, '3': 325, '4': 350, '5': 375, '6': 400, '7': 425, '8': 450, '9': 475 }
+
+export function extractTemperature(text) {
+  const t = String(text || '')
+  let m
+
+  // 1) number + degree/deg marker + scale letter or word: 400°F, 180 °C, 350 degrees F
+  m = t.match(/(\d{2,3})\s*(?:°|º|deg(?:rees?)?\.?)\s*(fahrenheit|celsius|centigrade|f|c)\b/i)
+  if (m) return `${m[1]}°${/^c/i.test(m[2]) ? 'C' : 'F'}`
+
+  // 2) number + spelled scale word, no degree marker: 350 fahrenheit
+  m = t.match(/(\d{2,3})\s*(fahrenheit|celsius|centigrade)\b/i)
+  if (m) return `${m[1]}°${/^c/i.test(m[2]) ? 'C' : 'F'}`
+
+  // 3) number + degree symbol, no scale letter: "bake at 400°" -> infer from range
+  m = t.match(/(\d{2,3})\s*(?:°|º)(?!\s*[cf])/i)
+  if (m) {
+    const n = Number(m[1])
+    if (n >= 120 && n <= 550) return `${n}°${n >= 250 ? 'F' : 'C'}`
+  }
+
+  // 4) gas mark (UK ovens)
+  m = t.match(/\bgas\s*(?:mark)?\s*([1-9])\b/i)
+  if (m && GAS_MARK_F[m[1]]) return `${GAS_MARK_F[m[1]]}°F`
+
+  // 5) bare 3-digit + scale letter, hot enough to only be an oven temp: 400F, 180C
+  m = t.match(/\b(\d{3})\s*(f|c)\b/i)
+  if (m) {
+    const n = Number(m[1]); const sc = m[2].toUpperCase()
+    if ((sc === 'F' && n >= 250 && n <= 550) || (sc === 'C' && n >= 100 && n <= 300)) return `${n}°${sc}`
+  }
+
+  // 6) bare number right after an oven verb, US oven band: "preheat oven to 375"
+  m = t.match(/\b(?:pre-?heat|oven|bake|baking|roast(?:ing)?|air[\s-]?fry(?:er)?|broil)\b[^.\n\d]{0,24}(\d{3})\b/i)
+  if (m) {
+    const n = Number(m[1])
+    if (n >= 250 && n <= 550) return `${n}°F`
+  }
+
+  return null
+}
+
 function looksLikeIngredient(line) {
   if (line.length > 90) return false
   if (/^\d+(?:[.,:]\d+)?\s*[.)]\s/.test(line)) return false // "1) Do the thing"
@@ -287,6 +336,7 @@ function looksLikeIngredient(line) {
 export function parseTextRecipe(input, sourceUrl = '') {
   const text = stripHtml(String(input || ''))
   const times = extractTimes(text)
+  const temperature = extractTemperature(text)
   const rawLines = text.split(/\r?\n/).map((l) => l.replace(LEADING_DECOR, '').trim())
 
   const tags = []
@@ -354,6 +404,7 @@ export function parseTextRecipe(input, sourceUrl = '') {
       prepTime: times.prepTime,
       cookTime: times.cookTime,
       totalTime: times.totalTime,
+      temperature,
       ingredients,
       instructions: steps,
       notes: notes.join('\n'),

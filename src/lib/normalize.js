@@ -250,6 +250,13 @@ export function normalizeTemperatures(text) {
   )
 }
 
+function cleanTemperature(value) {
+  const s = collapse(String(value || ''))
+  if (!s) return null
+  const out = normalizeTemperatures(s)
+  return out || null
+}
+
 function toLines(input) {
   if (input == null) return []
   if (Array.isArray(input)) {
@@ -412,6 +419,7 @@ export function normalizeRecipe(raw = {}) {
     prepMinutes,
     cookMinutes,
     totalMinutes,
+    temperature: cleanTemperature(raw.temperature),
     ingredients,
     steps,
     tags,

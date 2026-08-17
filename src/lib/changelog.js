@@ -4,6 +4,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.5',
+    date: '2026-08-17',
+    notes: [
+      "Recipes now capture the oven temperature when the video or steps mention one - shown on the card and the recipe page in both \u00b0F and \u00b0C.",
+      "Older imported recipes get their cook time and temperature filled in automatically once detected. Recipes you added or edited by hand are never touched.",
+      "Adding a recipe to your grocery list now skips any ingredient you've already checked off - checked means you have it, so it won't be re-added.",
+      "Meal plan: write in your own entry for a day (like 'Leftovers' or 'Dinner out') without needing a saved recipe."
+    ]
+  },
+  {
     version: '1.4',
     date: '2026-08-17',
     notes: [

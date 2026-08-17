@@ -287,7 +287,8 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
         siteName: oembed.providerName || hostnameOf(clean),
         prepTime: fromCaption.raw.prepTime,
         cookTime: fromCaption.raw.cookTime,
-        totalTime: fromCaption.raw.totalTime
+        totalTime: fromCaption.raw.totalTime,
+        temperature: fromCaption.raw.temperature
       },
       method: 'video oEmbed',
       confidence: 'low',

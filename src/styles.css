@@ -639,3 +639,12 @@ button.chip:hover { background: var(--surface-hover); }
 /* keep the 3-button action row tidy on narrow screens */
 .btn-row { flex-wrap: wrap; }
 .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+
+
+/* v1.5 - oven temp, skip-checked hint, custom plan entries */
+.list-hint { margin: -4px 0 10px; font-size: 0.8rem; color: var(--text-secondary); }
+.picker-writein { display: flex; gap: 8px; padding: 8px 16px 4px; }
+.picker-writein .input { flex: 1 1 auto; }
+.picker-writein .btn { flex: none; }
+.plan-chip.custom { background: var(--bg-raised); border-style: dashed; }
+.plan-chip.custom .plan-open { font-style: italic; color: var(--text-secondary); cursor: default; }
