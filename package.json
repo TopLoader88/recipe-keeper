@@ -1,0 +1,24 @@
+{
+  "name": "recipe-keeper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Offline-first recipe library: import from websites and videos, normalize the directions, keep the original source.",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "dev": "npm run icons && vite",
+    "build": "npm run icons && vite build",
+    "build:file": "vite build --mode standalone",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "playwright-core": "^1.62.1",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

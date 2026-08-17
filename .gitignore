@@ -1,0 +1,16 @@
+node_modules/
+dist/
+public/icons/
+*.local
+.DS_Store
+.vite/
+
+# local run/test scratch — not part of the app
+standalone/
+.browser-profile/
+.smoke/
+*.log
+
+# personal distributables, not source
+Recipe Keeper.html
+Recipe Keeper (put this on OneDrive)/
