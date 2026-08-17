@@ -9,6 +9,7 @@ import { useRecipes } from '../hooks/useRecipes.js'
 import { useRouter } from '../hooks/useRouter.js'
 import { IconDownload, IconUpload, IconFolder, IconTrash } from './icons.jsx'
 import ConfirmSheet from './ConfirmSheet.jsx'
+import { VERSION_LABEL } from '../lib/version.js'
 
 export default function Settings() {
   const { recipes } = useRecipes()
@@ -207,6 +208,8 @@ export default function Settings() {
           onCancel={() => setConfirmClear(false)}
         />
       )}
+
+      <p className="version-stamp">Recipe Keeper {VERSION_LABEL}</p>
 
       {toast && <div className="toast">{toast}</div>}
     </div>
