@@ -515,3 +515,18 @@ button.chip:hover { background: var(--surface-hover); }
 }
 .scaler .serving-input { width: 96px; text-align: center; padding: 6px 8px; }
 .scaler-reset { display: block; margin: 10px auto 0; }
+
+/* ---- what's new / release notes ---- */
+.version-stamp { background: none; border: 0; cursor: pointer; display: block; width: 100%; padding: 6px 0; }
+.version-stamp:hover { color: var(--text-secondary); }
+
+.sheet { position: relative; }
+.sheet-x { position: absolute; top: 12px; right: 12px; background: none; border: 0; color: var(--text-tertiary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
+.sheet-x:hover { color: var(--text); background: var(--surface); }
+.sheet-x svg { width: 16px; height: 16px; }
+
+.whatsnew-entry + .whatsnew-entry { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.whatsnew-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.whatsnew-ver { font-weight: 700; font-size: 0.82rem; color: var(--accent); background: var(--accent-dim); padding: 1px 8px; border-radius: 999px; }
+.whatsnew-list { margin: 0; padding-left: 18px; }
+.whatsnew-list li { font-size: 0.86rem; color: var(--text); margin: 4px 0; line-height: 1.45; }

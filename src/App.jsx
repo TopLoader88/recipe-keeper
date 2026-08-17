@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useRouter, matchRoute } from './hooks/useRouter.js'
 import Library from './components/Library.jsx'
 import RecipeView from './components/RecipeView.jsx'
@@ -5,9 +6,30 @@ import Import from './components/Import.jsx'
 import Editor from './components/Editor.jsx'
 import Settings from './components/Settings.jsx'
 import { IconBook, IconPlus, IconSettings } from './components/icons.jsx'
+import { getSetting, setSetting } from './lib/db.js'
+import { APP_VERSION } from './lib/version.js'
+import { entriesSince } from './lib/changelog.js'
+import WhatsNew from './components/WhatsNew.jsx'
 
 export default function App() {
   const { path, navigate } = useRouter()
+  const [whatsNew, setWhatsNew] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getSetting('lastSeenVersion', null).then((seen) => {
+      if (cancelled || seen === APP_VERSION) return
+      const entries = entriesSince(seen)
+      if (entries.length) setWhatsNew(entries)
+      else setSetting('lastSeenVersion', APP_VERSION)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  function closeWhatsNew() {
+    setWhatsNew(null)
+    setSetting('lastSeenVersion', APP_VERSION)
+  }
 
   let page = null
   let activeTab = null
@@ -47,6 +69,7 @@ export default function App() {
           <span>Settings</span>
         </button>
       </nav>
+      {whatsNew && <WhatsNew entries={whatsNew} onClose={closeWhatsNew} />}
     </div>
   )
 }

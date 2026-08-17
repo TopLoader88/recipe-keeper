@@ -2,6 +2,25 @@
 
 import { detectShareLink } from './share-links.js'
 
+/* TikTok's inline iframe player. The older /embed/v2 page renders a card but
+   won't actually play on its own (it expects the embed.js script context), so
+   we use TikTok's documented player endpoint instead.
+   https://developers.tiktok.com/doc/embed-player */
+export function tiktokPlayerUrl(id) {
+  return `https://www.tiktok.com/player/v1/${id}?rel=0&native_context_menu=0&description=0`
+}
+
+/* Best iframe src for a stored video, upgrading older TikTok recipes that were
+   saved with the non-playing /embed/v2 URL. */
+export function playableEmbedUrl(video) {
+  if (!video) return ''
+  if (video.platform === 'tiktok') {
+    const id = video.videoId || (String(video.embedUrl || '').match(/\/(?:embed\/v2|player\/v1)\/(\d{6,})/) || [])[1]
+    if (id) return tiktokPlayerUrl(id)
+  }
+  return video.embedUrl || ''
+}
+
 const PLATFORMS = [
   {
     id: 'youtube',
@@ -14,8 +33,8 @@ const PLATFORMS = [
   {
     id: 'tiktok',
     label: 'TikTok',
-    match: /tiktok\.com\/(?:@[\w.-]+\/video\/|v\/|embed\/v2\/)(\d{6,})/i,
-    embed: (id) => `https://www.tiktok.com/embed/v2/${id}`,
+    match: /tiktok\.com\/(?:@[\w.-]+\/video\/|v\/|embed\/v2\/|player\/v1\/)(\d{6,})/i,
+    embed: (id) => tiktokPlayerUrl(id),
     oembed: (url) => `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
     aspect: '9 / 16'
   },
@@ -172,13 +191,15 @@ export async function fetchOEmbed(url, { signal } = {}) {
 export function resolveFromOEmbed(shortUrl, oembed) {
   if (!oembed) return null
   const haystack = `${oembed.html || ''} ${oembed.thumbnail || ''}`
-  const tiktokId = haystack.match(/(?:video-id=["']|\/video\/)(\d{6,})/)
+  const tiktokId = (oembed.embedProductId && /^\d{6,}$/.test(oembed.embedProductId))
+    ? oembed.embedProductId
+    : (haystack.match(/(?:video-id=["']|\/video\/)(\d{6,})/) || [])[1]
   if (tiktokId) {
     return {
       platform: 'tiktok',
       label: 'TikTok',
-      videoId: tiktokId[1],
-      embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId[1]}`,
+      videoId: tiktokId,
+      embedUrl: tiktokPlayerUrl(tiktokId),
       url: shortUrl,
       aspect: '9 / 16',
       kind: 'iframe'

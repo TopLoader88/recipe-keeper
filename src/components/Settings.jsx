@@ -10,6 +10,8 @@ import { useRouter } from '../hooks/useRouter.js'
 import { IconDownload, IconUpload, IconFolder, IconTrash } from './icons.jsx'
 import ConfirmSheet from './ConfirmSheet.jsx'
 import { VERSION_LABEL } from '../lib/version.js'
+import { CHANGELOG } from '../lib/changelog.js'
+import WhatsNew from './WhatsNew.jsx'
 
 export default function Settings() {
   const { recipes } = useRecipes()
@@ -21,6 +23,7 @@ export default function Settings() {
   const [busy, setBusy] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
   const [persisted, setPersisted] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
 
   useEffect(() => {
     estimateStorage().then(setStorage)
@@ -209,7 +212,13 @@ export default function Settings() {
         />
       )}
 
-      <p className="version-stamp">Recipe Keeper {VERSION_LABEL}</p>
+      <button className="version-stamp" onClick={() => setShowNotes(true)}>
+        Recipe Keeper {VERSION_LABEL}
+      </button>
+
+      {showNotes && (
+        <WhatsNew entries={CHANGELOG} title="Release notes" onClose={() => setShowNotes(false)} />
+      )}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

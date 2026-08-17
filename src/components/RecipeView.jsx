@@ -4,6 +4,7 @@ import { formatIngredient } from '../lib/normalize.js'
 import { formatMinutes, formatNumber } from '../lib/format.js'
 import { shareRecipe } from '../lib/share.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
+import { playableEmbedUrl } from '../lib/video.js'
 import { useRouter } from '../hooks/useRouter.js'
 import ConfirmSheet from './ConfirmSheet.jsx'
 import {
@@ -150,7 +151,7 @@ export default function RecipeView({ id }) {
             video.kind === 'iframe' ? (
               <div className="frame" style={{ aspectRatio: video.aspect }}>
                 <iframe
-                  src={video.embedUrl}
+                  src={playableEmbedUrl(video)}
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
                   loading="lazy"
