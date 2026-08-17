@@ -341,6 +341,36 @@ export function parseTextRecipe(input, sourceUrl = '') {
   }
 }
 
+/* A social-video caption is usually one long line: a title, an inline
+   "Ingredients:" list separated by commas, and maybe "Method:" steps, all run
+   together. parseTextRecipe needs those on separate lines to tell them apart, so
+   this reshapes a caption into the line-per-item form it expects. */
+export function normalizeCaption(caption) {
+  let t = String(caption || '').replace(/\r/g, '')
+
+  // Put recognised section headings on their own line.
+  t = t.replace(
+    /\s*(ingredients?|what you(?:'ll| will)? need|you(?:'ll| will)? need|instructions?|directions?|method|steps|preparation)\s*:\s*/gi,
+    (m, h) => `\n${h}:\n`
+  )
+
+  // Break a "1. do this 2. do that" run of numbered steps onto separate lines.
+  t = t.replace(/\s+(?=(?:step\s*)?\d{1,2}\s*[.)]\s+[A-Za-z])/gi, '\n')
+
+  // Split a comma-separated quantity list ("16oz cheese, 2 cans chili, 1 tsp salt")
+  // into one ingredient per line. Only break before a comma that is followed by a
+  // quantity, so a note like "flour, sifted" stays on its own line intact.
+  const out = []
+  for (const rawLine of t.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const parts = line.split(/\s*,\s*(?=(?:\d|½|¼|¾|⅓|⅔|⅛|a |an |one |two |three |four |half ))/i)
+    if (parts.length > 1) for (const p of parts) { const q = p.trim(); if (q) out.push(q) }
+    else out.push(line)
+  }
+  return out.join('\n')
+}
+
 /** r.jina.ai returns markdown; strip the syntax before the text parser sees it. */
 export function markdownToText(md) {
   return String(md || '')

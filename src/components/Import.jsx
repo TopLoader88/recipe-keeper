@@ -19,11 +19,10 @@ export default function Import() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.hash.split('?')[1] || '')
-    const shared = params.get('url') || params.get('text') || ''
-    if (shared) {
-      if (/^https?:\/\//i.test(shared)) setUrl(shared)
-      else { setText(shared); setMode('text') }
-    }
+    const sharedUrl = params.get('url')
+    const sharedText = params.get('text')
+    if (sharedUrl) { setUrl(sharedUrl); setMode('url') }
+    else if (sharedText) { setText(sharedText); setMode('text') }
   }, [])
 
   async function handleImportUrl(e) {
@@ -48,6 +47,7 @@ export default function Import() {
 
       if (result.needsPaste) {
         setNeedsPaste(result)
+        if (result.caption) setText(result.caption)
         setStatus('')
         setBusy(false)
         setMode('text')

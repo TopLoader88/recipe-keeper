@@ -3,6 +3,7 @@ import { useRecipes } from '../hooks/useRecipes.js'
 import { useRouter } from '../hooks/useRouter.js'
 import { putRecipe } from '../lib/db.js'
 import { formatMinutes } from '../lib/format.js'
+import { interpretShare } from '../lib/share-target.js'
 import { IconSearch, IconHeart, IconHeartFilled, IconClock, IconBook, IconPlay } from './icons.jsx'
 
 export default function Library() {
@@ -13,10 +14,15 @@ export default function Library() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
-    const url = params.get('url') || params.get('text')
-    if (url) {
+    const shared = interpretShare({
+      title: params.get('title'),
+      text: params.get('text'),
+      url: params.get('url')
+    })
+    if (shared) {
       history.replaceState(null, '', location.pathname + location.hash)
-      navigate(`/import?url=${encodeURIComponent(url)}`)
+      const key = shared.url ? 'url' : 'text'
+      navigate(`/import?${key}=${encodeURIComponent(shared.url || shared.text)}`)
     }
   }, [])
 

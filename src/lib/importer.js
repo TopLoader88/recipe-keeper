@@ -5,7 +5,7 @@
    are importing. Turn them off in Settings and paste-import still works offline. */
 
 import { getSetting } from './db.js'
-import { parseHtmlRecipe, parseTextRecipe, markdownToText } from './parse.js'
+import { parseHtmlRecipe, parseTextRecipe, markdownToText, normalizeCaption } from './parse.js'
 import { normalizeRecipe } from './normalize.js'
 import { detectVideo, fetchOEmbed, resolveFromOEmbed } from './video.js'
 import { newId, hostnameOf } from './format.js'
@@ -226,46 +226,55 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
 
   let video = detectVideo(clean)
   let oembed = null
+  let caption = ''
 
   if (video) {
     onProgress?.(`Reading ${video.label} link…`)
     oembed = await fetchOEmbed(clean, { signal })
+    if (oembed?.title) caption = normalizeCaption(oembed.title)
     if (video.kind === 'unresolved') {
       const resolved = resolveFromOEmbed(clean, oembed)
       if (resolved) video = resolved
-      else warnings.push('This is a short share link, so the video could not be embedded. Open it once and paste the full link to play it in the app.')
+      else if (!oembed) warnings.push('This is a short share link, so the video could not be embedded. Open it once and paste the full link to play it in the app.')
     }
   }
+
+  // TikTok/Instagram/Facebook never expose a scrapable recipe page, and the public
+  // relays are blocked or bot-walled for them — so skip the slow page fetch and
+  // build straight from the caption the oEmbed handed back.
+  const captionOnly = Boolean(video && ['tiktok', 'instagram', 'facebook'].includes(video.platform))
 
   let parsed = null
   let via = ''
   let capture = { html: '', text: '', oembed }
 
-  try {
-    const page = await fetchPage(clean, { settings, signal, onProgress })
-    via = page.via
-    onProgress?.('Reading the recipe…')
-    if (page.kind === 'html') {
-      capture.html = page.body
-      parsed = parseHtmlRecipe(page.body, clean)
-      if (!parsed.ok) {
-        const asText = parseTextRecipe(stripToText(page.body), clean)
-        if (asText.ok) {
-          parsed = { ...asText, raw: { ...parsed.raw, ...asText.raw, image: parsed.raw.image, title: parsed.raw.title || asText.raw.title } }
+  if (!captionOnly) {
+    try {
+      const page = await fetchPage(clean, { settings, signal, onProgress })
+      via = page.via
+      onProgress?.('Reading the recipe…')
+      if (page.kind === 'html') {
+        capture.html = page.body
+        parsed = parseHtmlRecipe(page.body, clean)
+        if (!parsed.ok) {
+          const asText = parseTextRecipe(stripToText(page.body), clean)
+          if (asText.ok) {
+            parsed = { ...asText, raw: { ...parsed.raw, ...asText.raw, image: parsed.raw.image, title: parsed.raw.title || asText.raw.title } }
+          }
         }
+      } else {
+        const text = markdownToText(page.body)
+        capture.text = text
+        parsed = parseTextRecipe(text, clean)
       }
-    } else {
-      const text = markdownToText(page.body)
-      capture.text = text
-      parsed = parseTextRecipe(text, clean)
+    } catch (err) {
+      warnings.push(err?.message || 'The page could not be fetched.')
     }
-  } catch (err) {
-    warnings.push(err?.message || 'The page could not be fetched.')
   }
 
   // Video platforms usually refuse scraping; fall back to whatever oEmbed gave us.
   if ((!parsed || !parsed.ok) && oembed) {
-    const fromCaption = parseTextRecipe(oembed.title || '', clean)
+    const fromCaption = parseTextRecipe(caption, clean)
     parsed = {
       raw: {
         title: cleanCaptionTitle(oembed.title) || fromCaption.raw.title || `${video?.label || 'Video'} recipe`,
@@ -281,7 +290,7 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
       confidence: 'low',
       ok: fromCaption.ok
     }
-    capture.text = capture.text || oembed.title || ''
+    capture.text = capture.text || caption || oembed.title || ''
   }
 
   if (!parsed) {
@@ -321,7 +330,7 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
     )
   }
 
-  return { ...built, video, oembed, warnings, needsPaste, via }
+  return { ...built, video, oembed, warnings, needsPaste, via, caption }
 }
 
 function cleanCaptionTitle(caption) {
