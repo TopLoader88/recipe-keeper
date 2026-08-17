@@ -4,6 +4,13 @@
 
 export const CHANGELOG = [
   {
+    version: '1.7',
+    date: '2026-08-17',
+    notes: [
+      "Meal plan: if you delete a recipe that was on your plan, the entry now stays put and turns red so you can see what's missing - instead of quietly breaking. Tap the X to clear it whenever you like."
+    ]
+  },
+  {
     version: '1.6',
     date: '2026-08-17',
     notes: [

@@ -648,6 +648,9 @@ button.chip:hover { background: var(--surface-hover); }
 .picker-writein .btn { flex: none; }
 .plan-chip.custom { background: var(--bg-raised); border-style: dashed; }
 .plan-chip.custom .plan-open { font-style: italic; color: var(--text-secondary); cursor: default; }
+.plan-chip.missing { border-color: rgba(221, 85, 85, 0.5); background: rgba(221, 85, 85, 0.08); }
+.plan-chip.missing .plan-open { color: var(--red); display: inline-flex; align-items: center; gap: 5px; }
+.plan-chip.missing .plan-warn { width: 13px; height: 13px; flex: none; }
 
 /* ---- v1.6 food log: nutrition + diary ---- */
 .macros { display: flex; gap: 8px; }

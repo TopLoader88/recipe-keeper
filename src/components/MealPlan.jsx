@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useMealPlan } from '../hooks/useMealPlan.js'
+import { useRecipes } from '../hooks/useRecipes.js'
 import { useRouter } from '../hooks/useRouter.js'
 import {
   SLOTS, startOfWeek, weekDays, addDays, toISODate, weekdayShort, dayOfMonth,
@@ -10,7 +11,7 @@ import {
 } from '../lib/db.js'
 import { lineFromIngredient, addLine } from '../lib/grocery.js'
 import RecipePicker from './RecipePicker.jsx'
-import { IconChevronLeft, IconChevronRight, IconPlus, IconX, IconListPlus, IconCalendar } from './icons.jsx'
+import { IconChevronLeft, IconChevronRight, IconPlus, IconX, IconListPlus, IconCalendar, IconAlert } from './icons.jsx'
 
 function newId() {
   if (globalThis.crypto && globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID()
@@ -20,11 +21,13 @@ function newId() {
 export default function MealPlan() {
   const { entries, loading } = useMealPlan()
   const { navigate } = useRouter()
+  const { recipes, loading: recipesLoading } = useRecipes()
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [picker, setPicker] = useState(null)
   const [toast, setToast] = useState('')
 
   const days = weekDays(weekStart)
+  const recipeIds = new Set(recipes.map((r) => r.id))
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -149,14 +152,25 @@ export default function MealPlan() {
                   <div key={slot.key} className="slot">
                     <div className="slot-label">{slot.emoji} {slot.label}</div>
                     <div className="slot-body">
-                      {list.map((e) => (
-                        <div key={e.id} className={`plan-chip ${e.recipeId ? '' : 'custom'}`}>
-                          <button className="plan-open" onClick={() => e.recipeId && navigate(`/recipe/${e.recipeId}`)}>
+                      {list.map((e) => {
+                        const missing = !recipesLoading && !!e.recipeId && !recipeIds.has(e.recipeId)
+                        return (
+                        <div key={e.id} className={`plan-chip ${e.recipeId ? '' : 'custom'} ${missing ? 'missing' : ''}`}>
+                          <button
+                            className="plan-open"
+                            title={missing ? 'This recipe was deleted - tap X to remove' : undefined}
+                            onClick={() => {
+                              if (missing) { showToast('That recipe was deleted'); return }
+                              if (e.recipeId) navigate(`/recipe/${e.recipeId}`)
+                            }}
+                          >
+                            {missing && <IconAlert className="plan-warn" />}
                             {e.title}
                           </button>
                           <button className="plan-x" onClick={() => removeEntry(e.id)} aria-label="Remove"><IconX /></button>
                         </div>
-                      ))}
+                        )
+                      })}
                       <button className="slot-add" onClick={() => setPicker({ date: iso, slot: slot.key })}>
                         <IconPlus /> Add
                       </button>
