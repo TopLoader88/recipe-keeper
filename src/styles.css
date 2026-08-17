@@ -502,3 +502,16 @@ button.chip:hover { background: var(--surface-hover); }
   font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   letter-spacing: 0.02em;
 }
+
+/* ---- serving scaler (always-on, tap to set) ---- */
+.scaler .value-btn {
+  background: none;
+  border: 0;
+  color: inherit;
+  display: block;
+  width: 100%;
+  padding: 0;
+  cursor: pointer;
+}
+.scaler .serving-input { width: 96px; text-align: center; padding: 6px 8px; }
+.scaler-reset { display: block; margin: 10px auto 0; }

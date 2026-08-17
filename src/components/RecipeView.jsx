@@ -17,6 +17,7 @@ export default function RecipeView({ id }) {
   const [source, setSource] = useState(null)
   const [loading, setLoading] = useState(true)
   const [scale, setScale] = useState(1)
+  const [editingServings, setEditingServings] = useState(false)
   const [checked, setChecked] = useState({})
   const [doneSteps, setDoneSteps] = useState({})
   const [showSheet, setShowSheet] = useState(false)
@@ -106,6 +107,21 @@ export default function RecipeView({ id }) {
     else if (result === 'downloaded') showToast('Downloaded')
   }
 
+  async function commitServings(value) {
+    setEditingServings(false)
+    const n = Number(value)
+    if (!Number.isFinite(n) || n <= 0) return
+    if (recipe.servings) {
+      setScale(n / recipe.servings)
+    } else {
+      const updated = { ...recipe, servings: n }
+      await putRecipe(updated)
+      setRecipe(updated)
+      setScale(1)
+      scheduleAutoBackup()
+    }
+  }
+
   function toggleIngredient(idx) {
     setChecked((prev) => ({ ...prev, [idx]: !prev[idx] }))
   }
@@ -186,23 +202,56 @@ export default function RecipeView({ id }) {
 
       {recipe.description && <p className="recipe-desc">{recipe.description}</p>}
 
-      {/* Scaler */}
-      {servings && (
-        <div className="card">
-          <div className="scaler">
-            <button className="btn icon small" onClick={() => setScale((s) => Math.max(0.25, s - 0.5))} disabled={scale <= 0.25}>
-              <IconMinus />
-            </button>
-            <div className="value">
-              <strong>{formatNumber(scaledServings)}</strong>
-              <span>servings</span>
-            </div>
-            <button className="btn icon small" onClick={() => setScale((s) => s + 0.5)}>
-              <IconPlus />
-            </button>
+      {/* Serving scaler - always available, even when the source gave no count */}
+      <div className="card">
+        <div className="scaler">
+          <button
+            className="btn icon small"
+            onClick={() => setScale((s) => Math.max(0.25, Math.round((s - 0.5) * 100) / 100))}
+            disabled={scale <= 0.25}
+          >
+            <IconMinus />
+          </button>
+          <div className="value">
+            {editingServings ? (
+              <input
+                className="input serving-input"
+                type="number"
+                min="1"
+                step="any"
+                autoFocus
+                defaultValue={servings ? String(Math.round(scaledServings * 100) / 100) : ''}
+                placeholder="e.g. 4"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitServings(e.currentTarget.value) }
+                  else if (e.key === 'Escape') setEditingServings(false)
+                }}
+                onBlur={(e) => commitServings(e.currentTarget.value)}
+              />
+            ) : (
+              <button className="value-btn" onClick={() => setEditingServings(true)}>
+                {servings ? (
+                  <>
+                    <strong>{formatNumber(scaledServings)}</strong>
+                    <span>servings &middot; tap to set</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>{scale}&times;</strong>
+                    <span>tap to set servings</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
+          <button className="btn icon small" onClick={() => setScale((s) => Math.round((s + 0.5) * 100) / 100)}>
+            <IconPlus />
+          </button>
         </div>
-      )}
+        {scale !== 1 && (
+          <button className="link-btn small scaler-reset" onClick={() => setScale(1)}>Reset to original</button>
+        )}
+      </div>
 
       {/* Ingredients */}
       {recipe.ingredients?.length > 0 && (

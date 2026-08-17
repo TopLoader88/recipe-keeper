@@ -5,7 +5,9 @@ export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSIO
 export const BUILD_SHA = typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev'
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
+const SHORT_VERSION = APP_VERSION.replace(/\.0$/, '')
+
 export const VERSION_LABEL =
-  `v${APP_VERSION}` +
+  `v${SHORT_VERSION}` +
   (BUILD_SHA && BUILD_SHA !== 'dev' ? ` · ${BUILD_SHA}` : '') +
   (BUILD_DATE ? ` · ${BUILD_DATE}` : '')
