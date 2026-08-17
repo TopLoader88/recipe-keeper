@@ -4,6 +4,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.4',
+    date: '2026-08-17',
+    notes: [
+      "New Grocery tab: a shopping list auto-sorted by store section (Produce, Meat, Dairy, Frozen...) - the way the Safeway app groups aisles. Add items by hand or pull them from any recipe, then check them off as you shop.",
+      "New Meal plan tab: a weekly calendar with breakfast / lunch / dinner slots. Plan your week, then tap one button to send every ingredient to your grocery list.",
+      "From any recipe: 'Add to list' drops its ingredients into the grocery list, and 'Plan' puts it on a day.",
+      "Tap a grocery item to search for it on Safeway (via Instacart) or move it to a different aisle."
+    ]
+  },
+  {
     version: '1.3',
     date: '2026-08-17',
     notes: [
@@ -55,3 +65,4 @@ export function entriesSince(lastSeen) {
   if (!lastSeen) return CHANGELOG.slice(0, 1)
   return CHANGELOG.filter((e) => compareVersions(e.version, lastSeen) > 0)
 }
+

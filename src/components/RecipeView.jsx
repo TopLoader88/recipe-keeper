@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getRecipe, getSource, putRecipe, deleteRecipe } from '../lib/db.js'
+import { getRecipe, getSource, putRecipe, deleteRecipe, getAllGrocery, putGroceryBulk, putMealPlan } from '../lib/db.js'
 import { formatIngredient } from '../lib/normalize.js'
 import { formatMinutes, formatNumber } from '../lib/format.js'
 import { shareRecipe } from '../lib/share.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
 import { playableEmbedUrl } from '../lib/video.js'
+import { lineFromIngredient, addLine } from '../lib/grocery.js'
+import { SLOTS, startOfWeek, weekDays, toISODate, weekdayShort, dayOfMonth, slotLabel } from '../lib/mealplan.js'
 import { useRouter } from '../hooks/useRouter.js'
 import ConfirmSheet from './ConfirmSheet.jsx'
 import {
   IconChevronLeft, IconClock, IconUsers, IconEdit, IconShare,
-  IconTrash, IconHeart, IconHeartFilled, IconMinus, IconPlus, IconPlay, IconX
+  IconTrash, IconHeart, IconHeartFilled, IconMinus, IconPlus, IconPlay, IconX,
+  IconCart, IconCalendar
 } from './icons.jsx'
 
 export default function RecipeView({ id }) {
@@ -20,6 +23,7 @@ export default function RecipeView({ id }) {
   const [scale, setScale] = useState(1)
   const [editingServings, setEditingServings] = useState(false)
   const [editingTime, setEditingTime] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
   const [checked, setChecked] = useState({})
   const [doneSteps, setDoneSteps] = useState({})
   const [showSheet, setShowSheet] = useState(false)
@@ -132,6 +136,26 @@ export default function RecipeView({ id }) {
     await putRecipe(updated)
     setRecipe(updated)
     scheduleAutoBackup()
+  }
+
+  async function addToGrocery() {
+    let list = await getAllGrocery()
+    let added = 0
+    for (const ing of recipe.ingredients || []) {
+      const line = lineFromIngredient(ing, scale)
+      if (!line) continue
+      list = addLine(list, line, { source: recipe.title })
+      added++
+    }
+    await putGroceryBulk(list)
+    showToast(added ? `Added ${added} item${added > 1 ? 's' : ''} to grocery` : 'No ingredients to add')
+  }
+
+  async function planTo(dateIso, slot) {
+    setPlanOpen(false)
+    const gid = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'm-' + Math.random().toString(36).slice(2)
+    await putMealPlan({ id: gid, date: dateIso, slot, recipeId: id, title: recipe.title, image: recipe.image || null, createdAt: Date.now() })
+    showToast(`Planned for ${slotLabel(slot)}`)
   }
 
   function toggleIngredient(idx) {
@@ -293,7 +317,10 @@ export default function RecipeView({ id }) {
       {/* Ingredients */}
       {recipe.ingredients?.length > 0 && (
         <>
-          <h2 className="section-title">Ingredients</h2>
+          <div className="section-head">
+            <h2 className="section-title">Ingredients</h2>
+            <button className="link-btn small" onClick={addToGrocery}><IconCart /> Add to list</button>
+          </div>
           <ul className="checklist">
             {recipe.ingredients.map((ing, i) => (
               <li key={i}>
@@ -372,6 +399,7 @@ export default function RecipeView({ id }) {
 
       {/* Action buttons */}
       <div className="btn-row" style={{ marginTop: 20 }}>
+        <button className="btn" onClick={() => setPlanOpen(true)}><IconCalendar /> Plan</button>
         <button className="btn" onClick={() => navigate(`/recipe/${id}/edit`)}><IconEdit /> Edit</button>
         <button className="btn danger" onClick={() => setConfirmDelete(true)}><IconTrash /> Delete</button>
       </div>
@@ -405,6 +433,31 @@ export default function RecipeView({ id }) {
             <button className="sheet-item" onClick={() => setShowSheet(false)}>
               <IconX /> <div>Cancel</div>
             </button>
+          </div>
+        </div>
+      )}
+
+      {planOpen && (
+        <div className="sheet-backdrop" onClick={() => setPlanOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="grabber" />
+            <h2>Add to meal plan</h2>
+            <div className="plan-picker">
+              {weekDays(startOfWeek(new Date())).map((d) => {
+                const iso = toISODate(d)
+                return (
+                  <div key={iso} className="plan-picker-row">
+                    <span className="plan-picker-day">{weekdayShort(d)} {dayOfMonth(d)}</span>
+                    <div className="plan-picker-slots">
+                      {SLOTS.map((sl) => (
+                        <button key={sl.key} className="chip" onClick={() => planTo(iso, sl.key)}>{sl.emoji} {sl.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <button className="sheet-item" onClick={() => setPlanOpen(false)}><IconX /> <div>Cancel</div></button>
           </div>
         </div>
       )}

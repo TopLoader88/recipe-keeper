@@ -4,10 +4,12 @@
    recipes  – the normalized, editable recipe
    sources  – the untouched capture of where it came from (kept forever)
    settings – small key/value preferences
+   grocery  – the shopping list (items grouped by store section)
+   mealplan – planned meals per day/slot
 */
 
 const DB_NAME = 'recipe-keeper'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise = null
 
@@ -27,6 +29,13 @@ export function openDB() {
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings')
+      }
+      if (!db.objectStoreNames.contains('grocery')) {
+        db.createObjectStore('grocery', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('mealplan')) {
+        const mp = db.createObjectStore('mealplan', { keyPath: 'id' })
+        mp.createIndex('date', 'date')
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -148,11 +157,81 @@ export async function setSetting(key, value) {
   emit()
 }
 
+/* ---------- grocery list ---------- */
+
+export async function getAllGrocery() {
+  const rows = await withStore('grocery', 'readonly', (store) => promisify(store.getAll()))
+  return (rows || []).sort((a, b) => (a.order || 0) - (b.order || 0))
+}
+
+export async function putGrocery(item) {
+  await withStore('grocery', 'readwrite', (store) => promisify(store.put(item)))
+  persistOnce()
+  emit()
+}
+
+/** Bulk write used when adding a recipe's ingredients; emits once. */
+export async function putGroceryBulk(items) {
+  await withStore('grocery', 'readwrite', (store) => {
+    for (const it of items) store.put(it)
+  })
+  persistOnce()
+  emit()
+}
+
+export async function deleteGrocery(id) {
+  await withStore('grocery', 'readwrite', (store) => promisify(store.delete(id)))
+  emit()
+}
+
+export async function clearCheckedGrocery() {
+  await withStore('grocery', 'readwrite', (store) => new Promise((resolve, reject) => {
+    const req = store.openCursor()
+    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) { resolve(); return }
+      if (cursor.value && cursor.value.checked) cursor.delete()
+      cursor.continue()
+    }
+  }))
+  emit()
+}
+
+export async function clearGrocery() {
+  await withStore('grocery', 'readwrite', (store) => promisify(store.clear()))
+  emit()
+}
+
+/* ---------- meal plan ---------- */
+
+export async function getAllMealPlan() {
+  return (await withStore('mealplan', 'readonly', (store) => promisify(store.getAll()))) || []
+}
+
+export async function putMealPlan(entry) {
+  await withStore('mealplan', 'readwrite', (store) => promisify(store.put(entry)))
+  persistOnce()
+  emit()
+}
+
+export async function deleteMealPlan(id) {
+  await withStore('mealplan', 'readwrite', (store) => promisify(store.delete(id)))
+  emit()
+}
+
+export async function clearMealPlan() {
+  await withStore('mealplan', 'readwrite', (store) => promisify(store.clear()))
+  emit()
+}
+
 /* ---------- housekeeping ---------- */
 
 export async function clearAllData() {
   await withStore('recipes', 'readwrite', (store) => promisify(store.clear()))
   await withStore('sources', 'readwrite', (store) => promisify(store.clear()))
+  await withStore('grocery', 'readwrite', (store) => promisify(store.clear()))
+  await withStore('mealplan', 'readwrite', (store) => promisify(store.clear()))
   emit()
 }
 

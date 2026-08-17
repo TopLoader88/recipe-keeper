@@ -5,7 +5,9 @@ import RecipeView from './components/RecipeView.jsx'
 import Import from './components/Import.jsx'
 import Editor from './components/Editor.jsx'
 import Settings from './components/Settings.jsx'
-import { IconBook, IconPlus, IconSettings } from './components/icons.jsx'
+import Grocery from './components/Grocery.jsx'
+import MealPlan from './components/MealPlan.jsx'
+import { IconBook, IconPlus, IconSettings, IconCart, IconCalendar } from './components/icons.jsx'
 import { getSetting, setSetting } from './lib/db.js'
 import { APP_VERSION } from './lib/version.js'
 import { entriesSince } from './lib/changelog.js'
@@ -44,6 +46,12 @@ export default function App() {
   } else if (path === '/import' || path.startsWith('/import')) {
     page = <Import />
     activeTab = 'import'
+  } else if (path === '/plan') {
+    page = <MealPlan />
+    activeTab = 'plan'
+  } else if (path === '/grocery') {
+    page = <Grocery />
+    activeTab = 'grocery'
   } else if (path === '/settings') {
     page = <Settings />
     activeTab = 'settings'
@@ -60,9 +68,17 @@ export default function App() {
           <IconBook />
           <span>Library</span>
         </button>
+        <button className={activeTab === 'plan' ? 'active' : ''} onClick={() => navigate('/plan')}>
+          <IconCalendar />
+          <span>Plan</span>
+        </button>
         <button className={activeTab === 'import' ? 'active' : ''} onClick={() => navigate('/import')}>
           <IconPlus />
           <span>Import</span>
+        </button>
+        <button className={activeTab === 'grocery' ? 'active' : ''} onClick={() => navigate('/grocery')}>
+          <IconCart />
+          <span>Grocery</span>
         </button>
         <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => navigate('/settings')}>
           <IconSettings />
