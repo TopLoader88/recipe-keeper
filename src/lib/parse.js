@@ -180,7 +180,9 @@ export function extractSocialMeta(html) {
   return {
     title: metaContent(doc, ['og:title', 'twitter:title']),
     description: metaContent(doc, ['og:description', 'twitter:description', 'description']),
-    image: metaContent(doc, ['og:image', 'og:image:secure_url', 'twitter:image'])
+    image: metaContent(doc, ['og:image', 'og:image:secure_url', 'twitter:image']),
+    url: metaContent(doc, ['og:url']),
+    videoUrl: metaContent(doc, ['og:video:url', 'og:video', 'og:video:secure_url'])
   }
 }
 

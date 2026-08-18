@@ -4,6 +4,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.11',
+    date: '2026-08-17',
+    notes: [
+      "Facebook now works. Pasting or sharing a Facebook reel - including the short facebook.com/share/... links - now finds the video, its title and its cover photo, plays it in the app, and takes you straight to \u201cScan a photo\u201d so you can capture the recipe from the video's on-screen text.",
+      "Fixed a bug where finishing a video import could drop the cover photo (and sometimes the title). They're kept now."
+    ]
+  },
+  {
     version: '1.10',
     date: '2026-08-17',
     notes: [

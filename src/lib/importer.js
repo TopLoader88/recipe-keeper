@@ -7,7 +7,7 @@
 import { getSetting } from './db.js'
 import { parseHtmlRecipe, parseTextRecipe, markdownToText, normalizeCaption, extractSocialMeta } from './parse.js'
 import { normalizeRecipe } from './normalize.js'
-import { detectVideo, fetchOEmbed, resolveFromOEmbed } from './video.js'
+import { detectVideo, fetchOEmbed, resolveFromOEmbed, resolveFacebookVideo } from './video.js'
 import { newId, hostnameOf } from './format.js'
 import { toStoredImage } from './image.js'
 
@@ -263,7 +263,7 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
     if (video.kind === 'unresolved') {
       const resolved = resolveFromOEmbed(clean, oembed)
       if (resolved) video = resolved
-      else if (!oembed) warnings.push('This is a short share link, so the video could not be embedded. Open it once and paste the full link to play it in the app.')
+      else if (!oembed && video.platform !== 'facebook') warnings.push('This is a short share link, so the video could not be embedded. Open it once and paste the full link to play it in the app.')
     }
   }
 
@@ -272,18 +272,26 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
   // og:description (and a thumbnail in og:image) - a reader relay can see those
   // even though the page is walled to a direct fetch. Read the caption from the
   // page's own metadata and treat it exactly like an oEmbed caption.
-  if (video && !caption && ['facebook', 'instagram'].includes(video.platform)) {
+  if (video && ['facebook', 'instagram'].includes(video.platform) && (!caption || video.kind === 'unresolved' || !video.embedUrl)) {
     onProgress?.('Reading the caption\u2026')
     const meta = await fetchSocialMeta(clean, { settings, signal, onProgress })
-    const capText = pickCaption(meta)
-    if (capText) {
-      caption = normalizeCaption(capText)
-      oembed = {
-        title: capText,
-        author: (meta && meta.author) || '',
-        thumbnail: (meta && meta.image) || '',
-        html: '',
-        providerName: video.label
+    if (meta) {
+      const capText = pickCaption(meta)
+      if (capText && !caption) caption = normalizeCaption(capText)
+      if (capText || meta.image) {
+        oembed = {
+          title: capText || (oembed && oembed.title) || '',
+          author: (meta && meta.author) || (oembed && oembed.author) || '',
+          thumbnail: (meta && meta.image) || (oembed && oembed.thumbnail) || '',
+          html: '',
+          providerName: video.label
+        }
+      }
+      // A Facebook /share/ or /reel/ link never exposes the numeric video id, but
+      // the page's canonical og:url does - use it to build a player that embeds.
+      if (video.platform === 'facebook') {
+        const fb = resolveFacebookVideo(meta.url || clean) || resolveFacebookVideo(clean)
+        if (fb) video = { ...video, ...fb }
       }
     }
   }

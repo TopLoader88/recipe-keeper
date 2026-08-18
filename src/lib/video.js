@@ -56,7 +56,7 @@ const PLATFORMS = [
   {
     id: 'facebook',
     label: 'Facebook',
-    match: /(?:facebook\.com\/(?:[\w.-]+\/videos\/|watch\/?\?v=|reel\/)(\d+)|fb\.watch\/([\w-]+))/i,
+    match: /(?:facebook\.com\/(?:[\w.-]+\/videos\/(?:[^/]+\/)?|watch\/?\?v=|reel\/)(\d+)|fb\.watch\/([\w-]+))/i,
     embed: (id, url) => `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
     aspect: '9 / 16'
   },
@@ -83,7 +83,8 @@ const SHORT_LINKS = [
   /tiktok\.com\/t\/[\w-]+/i,
   /youtu\.be\/[\w-]+/i,
   /fb\.watch\/[\w-]+/i,
-  /pin\.it\/[\w-]+/i
+  /pin\.it\/[\w-]+/i,
+  /facebook\.com\/share\/[a-z]+\/[\w-]+/i
 ]
 
 const DIRECT_FILE = /\.(mp4|webm|ogv|m4v|mov)(\?|#|$)/i
@@ -137,7 +138,7 @@ export function detectVideo(url) {
   }
 
   if (isShortLink(input)) {
-    const guess = /tiktok/i.test(input) ? 'tiktok' : /youtu/i.test(input) ? 'youtube' : /fb\.watch/i.test(input) ? 'facebook' : 'unknown'
+    const guess = /tiktok/i.test(input) ? 'tiktok' : /youtu/i.test(input) ? 'youtube' : /(?:fb\.watch|facebook\.com\/share)/i.test(input) ? 'facebook' : 'unknown'
     return {
       platform: guess,
       label: guess === 'unknown' ? 'Video' : PLATFORMS.find((p) => p.id === guess)?.label || 'Video',
@@ -218,6 +219,32 @@ export function resolveFromOEmbed(shortUrl, oembed) {
     }
   }
   return null
+}
+
+/* Facebook /share/, /reel/ and /watch links hide (or omit) the numeric video id,
+   but the page's canonical og:url carries it. Pull it out and build the
+   plugins/video.php player, which embeds a public video far more reliably than a
+   bare /reel/ href does. */
+export function resolveFacebookVideo(url) {
+  const s = String(url || '')
+  const id = (
+    s.match(/\/videos\/(?:[^/]+\/)?(\d{6,})/) ||
+    s.match(/\/reel\/(\d{6,})/) ||
+    s.match(/\/watch\/?\?(?:[^#]*&)?v=(\d{6,})/) ||
+    s.match(/[?&]v=(\d{6,})/) ||
+    []
+  )[1]
+  if (!id) return null
+  const href = `https://www.facebook.com/watch/?v=${id}`
+  return {
+    platform: 'facebook',
+    label: 'Facebook',
+    videoId: id,
+    embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(href)}&show_text=false`,
+    url: s,
+    aspect: '9 / 16',
+    kind: 'iframe'
+  }
 }
 
 export const VIDEO_PLATFORMS = PLATFORMS.map((p) => ({ id: p.id, label: p.label }))

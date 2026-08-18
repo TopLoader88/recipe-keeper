@@ -85,7 +85,14 @@ export default function Import() {
     const result = needsPaste
       ? (() => {
           const built = importFromText(text.trim(), { sourceUrl, video })
-          built.recipe = { ...needsPaste.recipe, ...built.recipe, id: needsPaste.recipe.id, createdAt: needsPaste.recipe.createdAt }
+          built.recipe = {
+            ...needsPaste.recipe,
+            ...built.recipe,
+            id: needsPaste.recipe.id,
+            createdAt: needsPaste.recipe.createdAt,
+            image: built.recipe.image || needsPaste.recipe.image || null,
+            title: built.recipe.title && built.recipe.title !== 'Untitled recipe' ? built.recipe.title : needsPaste.recipe.title || built.recipe.title
+          }
           built.original = { ...needsPaste.original, ...built.original, recipeId: needsPaste.recipe.id }
           return built
         })()
