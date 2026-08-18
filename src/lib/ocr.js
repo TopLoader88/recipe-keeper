@@ -160,10 +160,30 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
 
   const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 0
   // Sample ~3 frames/sec (capped) so every burned-in caption - which typically shows for
-  // ~2-3s - is caught in several frames and any on-screen time/temp badge (often only up
-  // a second or two, e.g. a "1 HR" chip on the intro card) lands on more than one frame.
-  // The cleaner votes across frames to discard single-frame misreads.
+  // ~2-3s - is caught in several frames and the cleaner can vote out single-frame misreads.
+  // This uniform pass drives the ingredient/caption consensus.
   const count = duration ? Math.min(90, Math.max(12, Math.round(duration * 3))) : 10
+  const marks = []
+  for (let i = 0; i < count; i++) marks.push({ t: duration ? (duration * (i + 0.5)) / count : 0, timeOnly: false })
+  // An on-screen cook time / oven temp card usually flashes by in the opening seconds and is
+  // legible for only a fraction of a second; on longer clips the 90-frame cap drops the base
+  // rate below 3 fps so that brief badge falls between frames and is missed. Add a dense burst
+  // over the intro to give it several reads to land on - but flag those frames timeOnly so the
+  // noisy animated title card can't feed phantom ingredients into the consensus; the cleaner
+  // uses them only for the time/temp read.
+  if (duration > 0) {
+    const introEnd = Math.min(6, duration)
+    for (let t = 0.1; t < introEnd; t += 0.25) marks.push({ t, timeOnly: true })
+  }
+  marks.sort((a, b) => a.t - b.t)
+  const schedule = []
+  for (const mk of marks) {
+    const prev = schedule[schedule.length - 1]
+    if (prev && mk.t - prev.t <= 0.08) { if (!mk.timeOnly) prev.timeOnly = false; continue }
+    schedule.push({ ...mk })
+  }
+  while (schedule.length > 120) { const j = schedule.findIndex((m) => m.timeOnly); schedule.splice(j >= 0 ? j : schedule.length - 1, 1) }
+  const total = schedule.length
   const vw = video.videoWidth || 720
   const vh = video.videoHeight || 1280
   const canvas = document.createElement('canvas')
@@ -178,9 +198,9 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   try { await worker.setParameters({ tessedit_pageseg_mode: '6' }) } catch {}
   const frames = []
   try {
-    for (let i = 0; i < count; i++) {
-      const t = duration ? (duration * (i + 0.5)) / count : 0
-      onProgress(0.05 + (i / count) * 0.9, `Reading the video… frame ${i + 1} of ${count}`)
+    for (let i = 0; i < total; i++) {
+      const { t, timeOnly } = schedule[i]
+      onProgress(0.05 + (i / total) * 0.9, `Reading the video… frame ${i + 1} of ${total}`)
       await seekTo(video, t)
       ctx.drawImage(video, 0, 0, vw, vh)
       try {
@@ -203,6 +223,7 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
         throw new Error(TAINTED)
       }
       const frame = frameFromData(data, i, t)
+      if (timeOnly) frame.timeOnly = true
       if (frame.lines.length) frames.push(frame)
     }
     onProgress(0.98, 'Cleaning up the text…')

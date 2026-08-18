@@ -362,27 +362,70 @@ function sameCaption(a, b) {
 const CLASS_VERBS = new Set([...COOK_VERBS].filter(v => !['diced', 'sliced', 'minced', 'grease', 'beat'].includes(v)))
 
 /* Read a cook time / oven temp off the frames (e.g. a "1 HR" badge, "bake at 375").
-   Requires the same value on >=2 frames so a single misread never invents a time. */
+   A value is trusted when it is read on >=2 frames (consensus, so a single misread
+   never invents a time) OR when one frame shows it as a crisp on-screen badge: a
+   high-confidence digit sitting right next to a unit word ("1" + "HR", "375" + "F").
+   On-screen time/temp chips flash by in only a second or two, so demanding two clean
+   reads of that brief badge missed them on most runs - a crisp single read is real. */
+const timeMinutes = (n, unit) => {
+  if (/^h/i.test(unit)) return (n >= 1 && n <= 8) ? n * 60 : null
+  return (n >= 5 && n <= 240) ? n : null
+}
+
 function extractTimeTemp(frames) {
   const timeVotes = new Map(), tempVotes = new Map()
+  const strongTime = new Set(), strongTemp = new Set()
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1)
+  const DIGIT_CONF = 70 // a real badge digit reads crisply even when its unit letters do not
+
   for (const fr of frames) {
+    // (a) count votes off the whole-frame text - robust to odd word splits
     const blob = (fr.text || '') + '\n' + (fr.lines || []).map((l) => l.text || l).join('\n')
     const low = blob.toLowerCase()
     let m
     const timeRe = /\b(\d{1,3})\s*(hours?|hrs?|hr|minutes?|mins?|min)\b/gi
-    while ((m = timeRe.exec(low))) {
-      const n = parseInt(m[1], 10)
-      const unit = /^h/.test(m[2]) ? 'h' : 'm'
-      if (unit === 'h' && n >= 1 && n <= 8) bump(timeVotes, n * 60)
-      if (unit === 'm' && n >= 5 && n <= 240) bump(timeVotes, n)
-    }
+    while ((m = timeRe.exec(low))) { const v = timeMinutes(parseInt(m[1], 10), m[2]); if (v != null) bump(timeVotes, v) }
     const tempRe = /\b(\d{2,3})\s*(?:°|º|deg(?:rees?)?|f\b|fahrenheit)/gi
     while ((m = tempRe.exec(low))) { const n = parseInt(m[1], 10); if (n >= 150 && n <= 550) bump(tempVotes, n) }
+
+    // (b) strong single-frame badges - anchor on a high-confidence digit word
+    for (const ln of (fr.lines || [])) {
+      const ws = ln.words
+      if (!Array.isArray(ws)) continue
+      for (let i = 0; i < ws.length; i++) {
+        const w = ws[i], t = String(w.t || '').trim(), conf = w.c || 0
+        if (conf < DIGIT_CONF) continue
+        // fused token: "1hr", "45min", "375f", "375°"
+        const fused = t.match(/^(\d{1,3})\s*°?\s*(hrs?|hours?|mins?|minutes?|f|c|fahrenheit|celsius)$/i)
+        if (fused) {
+          if (/^[fc]|fahren|celsi/i.test(fused[2])) { const n = +fused[1]; if (n >= 150 && n <= 550) strongTemp.add(n) }
+          else { const v = timeMinutes(+fused[1], fused[2]); if (v != null) strongTime.add(v) }
+          continue
+        }
+        const degOnly = t.match(/^(\d{2,3})\s*[°º]$/)
+        if (degOnly) { const n = +degOnly[1]; if (n >= 150 && n <= 550) strongTemp.add(n); continue }
+        // split token: crisp digit immediately followed by a unit word
+        if (/^\d{1,3}$/.test(t) && i + 1 < ws.length) {
+          const u = String(ws[i + 1].t || '').trim().toLowerCase()
+          const tm = u.match(/^(hrs?|hours?|mins?|minutes?)\b/)
+          if (tm) { const v = timeMinutes(+t, tm[1]); if (v != null) strongTime.add(v) }
+          else if (/^(°?[º°]?f|fahrenheit|deg|degrees?)\b/.test(u)) { const n = +t; if (n >= 150 && n <= 550) strongTemp.add(n) }
+        }
+      }
+    }
   }
-  const pick = (m) => { let best = null, bc = 1; for (const [k, c] of m) if (c > bc || (c === bc && best !== null && k > best)) { bc = c; best = k } return best }
-  const mins = pick(timeVotes)
-  const temp = pick(tempVotes)
+
+  // consensus (>=2 frames) wins; otherwise accept a single strong on-screen badge
+  const pick = (votes, strong) => {
+    let best = null, bc = 0
+    for (const [k, c] of votes) if (c > bc || (c === bc && best !== null && k > best)) { bc = c; best = k }
+    if (best != null && bc >= 2) return best
+    let sBest = null
+    for (const [k] of votes) if (strong.has(k) && (sBest === null || k > sBest)) sBest = k
+    return sBest
+  }
+  const mins = pick(timeVotes, strongTime)
+  const temp = pick(tempVotes, strongTemp)
   let cook = null
   if (mins != null) cook = mins % 60 === 0 ? `${mins / 60} hr` : `${mins} min`
   return { cook, temp: temp != null ? `${temp}°F` : null }
@@ -489,9 +532,9 @@ function normalizeFrames(frames) {
   return list.map((f, idx) => {
     if (typeof f === 'string') return { frame: idx, text: f, lines: f.split('\n').map((text, k) => ({ text, y0: k, c: 60 })) }
     const frame = typeof f.i === 'number' ? f.i : idx
-    if (Array.isArray(f.lines) && f.lines.length) return { frame, text: f.text || '', lines: f.lines.map((ln, k) => ({ text: ln.text || '', y0: ln.y0 ?? k, c: ln.c ?? 60 })) }
+    if (Array.isArray(f.lines) && f.lines.length) return { frame, timeOnly: !!f.timeOnly, text: f.text || '', lines: f.lines.map((ln, k) => ({ text: ln.text || '', y0: ln.y0 ?? k, c: ln.c ?? 60, words: Array.isArray(ln.words) ? ln.words : null })) }
     const txt = f.text || f.txt || ''
-    return { frame, text: txt, lines: String(txt).split('\n').map((text, k) => ({ text, y0: k, c: 60 })) }
+    return { frame, timeOnly: !!f.timeOnly, text: txt, lines: String(txt).split('\n').map((text, k) => ({ text, y0: k, c: 60 })) }
   })
 }
 
@@ -500,6 +543,7 @@ export async function cleanVideoText(frames) {
   const norm = normalizeFrames(frames)
   const cand = []
   for (const fr of norm) {
+    if (fr.timeOnly) continue // intro-burst frames feed the time/temp read only, not ingredients
     for (const ln of fr.lines) {
       const cl = cleanLine(ln.text || '')
       if (cl.hookish) continue

@@ -4,6 +4,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.15',
+    date: '2026-08-19',
+    notes: [
+      "Reading a recipe off a Facebook video now fills in the cook time (and the oven temperature when the video shows one) far more reliably. Those details usually flash on screen for only a second on the intro card, so the app now takes several quick extra reads over the opening of the video to catch a badge like \u201c1 HR\u201d - and it trusts a single clear on-screen reading instead of needing to see it twice.",
+      "Those extra intro reads are used only for the time and temperature, so they no longer slip stray words into your ingredient list. You still get the same clean list, now with the cook time filled in when it's on screen."
+    ]
+  },
+  {
     version: '1.14',
     date: '2026-08-18',
     notes: [
