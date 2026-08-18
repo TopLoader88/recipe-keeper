@@ -5,6 +5,8 @@
    only downloads the recognition engine the first time you scan. After that the
    browser cache serves it, so scanning keeps working offline. */
 
+import { cleanVideoText } from './videotext.js'
+
 let _tessPromise = null
 
 const TESS_VERSION = '5.1.1'
@@ -101,14 +103,18 @@ export async function recognizeImages(files, onProgress = () => {}) {
   }
 }
 
-/* Best-effort: pull on-screen text out of a directly-playable video FILE by
-   sampling a handful of frames and OCR-ing them. This can only work when the
-   video is same-origin or served with permissive CORS (e.g. a cloud-share file
-   link) - platform embeds (TikTok/Instagram/Facebook) hand out an iframe or an
-   expiring stream that the browser refuses to read pixels from, so callers should
-   treat a throw here as "not possible, take a screenshot instead". */
+/* Read the recipe straight off a video's burned-in caption text by sampling a
+   frame roughly every second, boosting contrast, OCR-ing each, then cleaning the
+   noisy multi-frame text into a de-duplicated draft (see videotext.js).
+
+   This only works when the browser can actually read the video's pixels, i.e. the
+   file is same-origin or served with permissive CORS (e.g. Facebook's extracted
+   mp4, which is Access-Control-Allow-Origin: *). Platform iframe embeds
+   (TikTok/Instagram) hand out no readable file, so their frames are tainted and we
+   throw a friendly "take a screenshot instead" message. */
 export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   if (!videoUrl) throw new Error('No video to scan.')
+  const TAINTED = 'This video is protected, so its frames cannot be read. Take a screenshot of the recipe text and use “From photo”.'
   const video = document.createElement('video')
   video.crossOrigin = 'anonymous'
   video.muted = true
@@ -117,41 +123,53 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   video.src = videoUrl
 
   await new Promise((resolve, reject) => {
-    const to = setTimeout(() => reject(new Error('The video took too long to load.')), 20000)
+    const to = setTimeout(() => reject(new Error('The video took too long to load.')), 25000)
     video.onloadedmetadata = () => { clearTimeout(to); resolve() }
-    video.onerror = () => { clearTimeout(to); reject(new Error('That video cannot be read for scanning.')) }
+    video.onerror = () => { clearTimeout(to); reject(new Error('That video could not be loaded for scanning. Take a screenshot of the recipe text and use “From photo”.')) }
   })
 
   const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 0
-  const count = duration ? Math.min(8, Math.max(3, Math.round(duration / 2))) : 3
+  const count = duration ? Math.min(24, Math.max(6, Math.round(duration))) : 6
+  const vw = video.videoWidth || 720
+  const vh = video.videoHeight || 1280
   const canvas = document.createElement('canvas')
+  canvas.width = vw
+  canvas.height = vh
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   const worker = await makeWorker(() => {})
-  const seen = new Set()
-  const chunks = []
+  const frames = []
   try {
     for (let i = 0; i < count; i++) {
       const t = duration ? (duration * (i + 0.5)) / count : 0
-      onProgress(i / count, `Scanning frame ${i + 1} of ${count}…`)
+      onProgress(0.05 + (i / count) * 0.9, `Reading the video… frame ${i + 1} of ${count}`)
       await seekTo(video, t)
-      canvas.width = video.videoWidth || 720
-      canvas.height = video.videoHeight || 1280
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      ctx.drawImage(video, 0, 0, vw, vh)
+      try {
+        const img = ctx.getImageData(0, 0, vw, vh)
+        const d = img.data
+        for (let j = 0; j < d.length; j += 4) {
+          let g = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]
+          g = (g - 128) * 1.7 + 140
+          d[j] = d[j + 1] = d[j + 2] = g < 0 ? 0 : g > 255 ? 255 : g
+        }
+        ctx.putImageData(img, 0, 0)
+      } catch (e) {
+        throw new Error(TAINTED)
+      }
       let data
       try {
         const res = await worker.recognize(canvas)
         data = res.data
       } catch (e) {
-        throw new Error('This video is protected, so its frames cannot be read. Take a screenshot of the recipe text and scan that instead.')
+        throw new Error(TAINTED)
       }
       const text = data && data.text ? data.text.trim() : ''
-      for (const line of text.split(/\n+/)) {
-        const key = line.trim().toLowerCase()
-        if (key.length > 2 && !seen.has(key)) { seen.add(key); chunks.push(line.trim()) }
-      }
+      if (text) frames.push(text)
     }
+    onProgress(0.98, 'Cleaning up the text…')
+    const draft = cleanVideoText(frames)
     onProgress(1, 'Done')
-    return chunks.join('\n')
+    return draft
   } finally {
     try { await worker.terminate() } catch {}
     video.removeAttribute('src')

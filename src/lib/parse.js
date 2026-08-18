@@ -171,6 +171,27 @@ function metaContent(doc, names) {
   return ''
 }
 
+/* Facebook burns the real, directly-playable mp4 into the share page's own JSON
+   (browser_native_hd_url / _sd_url / playable_url). Those files are served with
+   Access-Control-Allow-Origin: * so the browser can load them cross-origin and
+   read their frames for OCR. Pull the best one out of the raw HTML. The URLs are
+   signed and expire within hours, so they only work right after import. */
+export function extractVideoFileUrl(html) {
+  const s = String(html || '')
+  const keys = ['browser_native_hd_url', 'browser_native_sd_url', 'playable_url_quality_hd', 'playable_url']
+  for (const k of keys) {
+    const m = s.match(new RegExp('"' + k + '":"([^"]+)"'))
+    if (m && m[1]) {
+      const u = m[1]
+        .replace(/\\\//g, '/')
+        .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\/g, '')
+      if (/^https?:\/\//.test(u) && /\.mp4/i.test(u)) return u
+    }
+  }
+  return ''
+}
+
 /* Facebook and Instagram don't serve a usable public oEmbed, but their share
    pages still carry the post caption in og:title / og:description and a
    thumbnail in og:image. Pull just those out so an import can build from the
@@ -182,7 +203,8 @@ export function extractSocialMeta(html) {
     description: metaContent(doc, ['og:description', 'twitter:description', 'description']),
     image: metaContent(doc, ['og:image', 'og:image:secure_url', 'twitter:image']),
     url: metaContent(doc, ['og:url']),
-    videoUrl: metaContent(doc, ['og:video:url', 'og:video', 'og:video:secure_url'])
+    videoUrl: metaContent(doc, ['og:video:url', 'og:video', 'og:video:secure_url']),
+    fileUrl: extractVideoFileUrl(html)
   }
 }
 

@@ -6,6 +6,14 @@ import { recognizeImages, recognizeVideoFrames } from '../lib/ocr.js'
 import { useRouter } from '../hooks/useRouter.js'
 import { IconLink, IconClipboard, IconPlus, IconCamera } from './icons.jsx'
 
+function goodTitle(t) {
+  const s = String(t || '').trim()
+  if (!s || s === 'Untitled recipe') return false
+  if (/^recipe from /i.test(s)) return false
+  if (/^(video|facebook|instagram|tiktok) recipe$/i.test(s)) return false
+  return true
+}
+
 export default function Import() {
   const { navigate } = useRouter()
   const [url, setUrl] = useState('')
@@ -58,6 +66,10 @@ export default function Import() {
         setStatus('')
         setBusy(false)
         setMode('text')
+        // When the real video file was extracted (Facebook), read the recipe
+        // straight off its on-screen text - that's what the user is here for.
+        // Best-effort and non-blocking; they can still paste or take a screenshot.
+        if (result.video && result.video.fileUrl) scanVideoForText(result.video)
         return
       }
 
@@ -91,7 +103,11 @@ export default function Import() {
             id: needsPaste.recipe.id,
             createdAt: needsPaste.recipe.createdAt,
             image: built.recipe.image || needsPaste.recipe.image || null,
-            title: built.recipe.title && built.recipe.title !== 'Untitled recipe' ? built.recipe.title : needsPaste.recipe.title || built.recipe.title
+            // For a video import the caption/og title is the real dish name, so
+            // keep it rather than letting a garbled scanned line become the title.
+            title: goodTitle(needsPaste.recipe.title)
+              ? needsPaste.recipe.title
+              : (built.recipe.title && built.recipe.title !== 'Untitled recipe' ? built.recipe.title : needsPaste.recipe.title || built.recipe.title)
           }
           built.original = { ...needsPaste.original, ...built.original, recipeId: needsPaste.recipe.id }
           return built
@@ -174,8 +190,9 @@ export default function Import() {
     }
   }
 
-  async function scanVideoForText() {
-    const videoUrl = (needsPaste && needsPaste.video && (needsPaste.video.embedUrl || needsPaste.video.url)) || ''
+  async function scanVideoForText(videoObj) {
+    const vid = (videoObj && (videoObj.fileUrl || videoObj.embedUrl || videoObj.url)) ? videoObj : (needsPaste && needsPaste.video) || null
+    const videoUrl = (vid && (vid.fileUrl || vid.embedUrl || vid.url)) || ''
     if (!videoUrl || ocrBusy) return
     setError('')
     setOcrBusy(true)
@@ -324,11 +341,22 @@ export default function Import() {
               <IconCamera /> Scan a photo instead
             </button>
             {needsPaste && needsPaste.video && (
-              <button type="button" className="btn ghost" onClick={scanVideoForText} disabled={ocrBusy}>
-                <IconClipboard /> Scan the video for text
+              <button
+                type="button"
+                className={needsPaste.video.fileUrl ? 'btn primary' : 'btn ghost'}
+                onClick={() => scanVideoForText()}
+                disabled={ocrBusy}
+              >
+                <IconClipboard /> {needsPaste.video.fileUrl ? 'Read recipe from video' : 'Scan the video for text'}
               </button>
             )}
           </div>
+
+          {needsPaste && needsPaste.video && needsPaste.video.fileUrl && (
+            <div className="hint" style={{ marginTop: 6 }}>
+              The recipe is read straight off the video's on-screen text, so it's a rough draft - play the video and fix anything that came out garbled before importing.
+            </div>
+          )}
 
           {ocrBusy && (
             <div className="progress"><span className="spinner" /> {ocrStatus || 'Reading\u2026'} {ocrPct ? `${ocrPct}%` : ''}</div>

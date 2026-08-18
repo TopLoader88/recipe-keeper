@@ -4,6 +4,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.12',
+    date: '2026-08-17',
+    notes: [
+      "Facebook reels can now read the recipe straight off the video. When a reel's caption has no recipe (most of them), the app pulls the actual video, scans its on-screen text frame by frame, and drops a rough draft into Import for you to tidy up - no screenshots needed.",
+      "It's a best-effort read of stylized on-screen text, so treat it as a draft: play the video and fix anything that came out garbled before importing.",
+      "You can still tap “Scan a photo instead” for the cleanest result on any platform."
+    ]
+  },
+  {
     version: '1.11',
     date: '2026-08-17',
     notes: [

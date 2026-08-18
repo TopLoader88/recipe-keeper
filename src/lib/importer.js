@@ -292,6 +292,9 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
       if (video.platform === 'facebook') {
         const fb = resolveFacebookVideo(meta.url || clean) || resolveFacebookVideo(clean)
         if (fb) video = { ...video, ...fb }
+        // The extracted mp4 lets the app read the recipe straight off the video's
+        // on-screen text (see recognizeVideoFrames); keep it for the scan below.
+        if (meta.fileUrl) video = { ...video, fileUrl: meta.fileUrl }
       }
     }
   }
@@ -363,11 +366,16 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
     }
   }
 
+  // The scan-only mp4 URL is signed and expires within hours, so keep it out of
+  // the saved record (it would be a dead link later) - it rides along on the
+  // returned `video` for an immediate in-session scan instead.
+  const storedVideo = video ? (({ fileUrl, ...rest }) => rest)(video) : null
+
   const built = buildRecipe(parsed, {
     sourceUrl: clean,
     method: parsed.method,
     via,
-    video,
+    video: storedVideo,
     capture
   })
 
