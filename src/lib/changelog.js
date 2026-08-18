@@ -4,6 +4,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.10',
+    date: '2026-08-17',
+    notes: [
+      "New: capture a recipe straight from a photo or screenshot. Reels and TikToks that show the recipe as on-screen text (with no caption to grab) can now be read with the new \u201cFrom photo\u201d tab in Import - snap or pick one or more images (ingredients + steps) and the app reads the text for you to review.",
+      "You can also share a screenshot straight into Recipe Keeper from another app and it will open ready to scan.",
+      "The first scan downloads the text-recognition engine (a few MB); after that it works offline."
+    ]
+  },
+  {
     version: '1.9',
     date: '2026-08-17',
     notes: [

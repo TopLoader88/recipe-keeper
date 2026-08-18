@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { importFromUrl, importFromText } from '../lib/importer.js'
 import { putRecipe, putSource } from '../lib/db.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
+import { recognizeImages, recognizeVideoFrames } from '../lib/ocr.js'
 import { useRouter } from '../hooks/useRouter.js'
-import { IconLink, IconClipboard, IconPlus } from './icons.jsx'
+import { IconLink, IconClipboard, IconPlus, IconCamera } from './icons.jsx'
 
 export default function Import() {
   const { navigate } = useRouter()
@@ -16,6 +17,11 @@ export default function Import() {
   const [warnings, setWarnings] = useState([])
   const [needsPaste, setNeedsPaste] = useState(null)
   const abortRef = useRef(null)
+  const photoInputRef = useRef(null)
+  const [photos, setPhotos] = useState([])
+  const [ocrBusy, setOcrBusy] = useState(false)
+  const [ocrPct, setOcrPct] = useState(0)
+  const [ocrStatus, setOcrStatus] = useState('')
 
   useEffect(() => {
     const params = new URLSearchParams(location.hash.split('?')[1] || '')
@@ -23,6 +29,7 @@ export default function Import() {
     const sharedText = params.get('text')
     if (sharedUrl) { setUrl(sharedUrl); setMode('url') }
     else if (sharedText) { setText(sharedText); setMode('text') }
+    else if (params.get('shared') === 'photo') { loadSharedPhotos() }
   }, [])
 
   async function handleImportUrl(e) {
@@ -95,6 +102,96 @@ export default function Import() {
     navigate(`/recipe/${result.recipe.id}`)
   }
 
+  async function loadSharedPhotos() {
+    setMode('photo')
+    try {
+      const cache = await caches.open('shared-media')
+      const keys = await cache.keys()
+      const imgKeys = keys.filter((k) => k.url.includes('__shared_img_'))
+      const picked = []
+      for (const k of imgKeys) {
+        const res = await cache.match(k)
+        if (!res) continue
+        const blob = await res.blob()
+        picked.push({ file: new File([blob], 'shared.jpg', { type: blob.type || 'image/jpeg' }), url: URL.createObjectURL(blob) })
+        await cache.delete(k)
+      }
+      if (picked.length) {
+        setPhotos(picked)
+        scanPhotos(picked.map((p) => p.file))
+      }
+    } catch {}
+  }
+
+  function onPickPhotos(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setError('')
+    setPhotos((prev) => [...prev, ...files.map((f) => ({ file: f, url: URL.createObjectURL(f) }))])
+    e.target.value = ''
+  }
+
+  function removePhoto(i) {
+    setPhotos((prev) => {
+      const next = prev.slice()
+      const [gone] = next.splice(i, 1)
+      if (gone) URL.revokeObjectURL(gone.url)
+      return next
+    })
+  }
+
+  async function scanPhotos(fileList) {
+    const files = fileList || photos.map((p) => p.file)
+    if (!files.length || ocrBusy) return
+    setError('')
+    setWarnings([])
+    setOcrBusy(true)
+    setOcrPct(0)
+    setOcrStatus('Getting ready\u2026')
+    try {
+      const out = await recognizeImages(files, (frac, label) => {
+        setOcrPct(Math.round(frac * 100))
+        if (label) setOcrStatus(label)
+      })
+      if (!out.trim()) {
+        setError('No readable text was found in those images. Try a clearer, tighter screenshot of the recipe text.')
+        return
+      }
+      setText((prev) => (prev.trim() ? prev.trim() + '\n\n' + out : out))
+      setMode('text')
+    } catch (err) {
+      setError((err && err.message) || 'Text recognition failed.')
+    } finally {
+      setOcrBusy(false)
+      setOcrStatus('')
+    }
+  }
+
+  async function scanVideoForText() {
+    const videoUrl = (needsPaste && needsPaste.video && (needsPaste.video.embedUrl || needsPaste.video.url)) || ''
+    if (!videoUrl || ocrBusy) return
+    setError('')
+    setOcrBusy(true)
+    setOcrPct(0)
+    setOcrStatus('Loading the video\u2026')
+    try {
+      const out = await recognizeVideoFrames(videoUrl, (frac, label) => {
+        setOcrPct(Math.round(frac * 100))
+        if (label) setOcrStatus(label)
+      })
+      if (!out.trim()) {
+        setError('No on-screen text was found in the video. Try a screenshot of the recipe text instead.')
+        return
+      }
+      setText((prev) => (prev.trim() ? prev.trim() + '\n\n' + out : out))
+    } catch (err) {
+      setError((err && err.message) || 'The video could not be scanned. Take a screenshot of the recipe text and use "From photo".')
+    } finally {
+      setOcrBusy(false)
+      setOcrStatus('')
+    }
+  }
+
   function handleNew() {
     navigate('/new')
   }
@@ -105,6 +202,7 @@ export default function Import() {
 
       <div className="tabs">
         <button className={mode === 'url' ? 'active' : ''} onClick={() => setMode('url')}>From link</button>
+        <button className={mode === 'photo' ? 'active' : ''} onClick={() => setMode('photo')}>From photo</button>
         <button className={mode === 'text' ? 'active' : ''} onClick={() => setMode('text')}>Paste text</button>
       </div>
 
@@ -141,6 +239,63 @@ export default function Import() {
         </form>
       )}
 
+      {mode === 'photo' && (
+        <div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={onPickPhotos}
+          />
+          {photos.length === 0 ? (
+            <div className="field">
+              <label>Scan a recipe from a photo</label>
+              <button type="button" className="btn primary block" onClick={() => photoInputRef.current && photoInputRef.current.click()} disabled={ocrBusy}>
+                <IconCamera /> Choose photos or screenshots
+              </button>
+              <div className="hint">
+                Point it at a screenshot of the recipe text from a video, or a photo of a cookbook page. You can add more than one image (ingredients + steps) and they'll be read together.
+              </div>
+            </div>
+          ) : (
+            <div className="field">
+              <label>{photos.length} image{photos.length === 1 ? '' : 's'} ready</label>
+              <div className="photo-grid">
+                {photos.map((p, i) => (
+                  <div key={i} className="photo-thumb">
+                    <img src={p.url} alt="" />
+                    <button type="button" className="photo-x" onClick={() => removePhoto(i)} disabled={ocrBusy} aria-label="Remove">\u00d7</button>
+                  </div>
+                ))}
+                <button type="button" className="photo-add" onClick={() => photoInputRef.current && photoInputRef.current.click()} disabled={ocrBusy}>
+                  <IconPlus /> Add
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ocrBusy && (
+            <div className="progress"><span className="spinner" /> {ocrStatus || 'Reading\u2026'} {ocrPct ? `${ocrPct}%` : ''}</div>
+          )}
+
+          {error && <div className="note error">{error}</div>}
+
+          {photos.length > 0 && (
+            <div className="btn-row" style={{ marginTop: 14 }}>
+              <button type="button" className="btn primary block" onClick={() => scanPhotos()} disabled={ocrBusy}>
+                <IconCamera /> {ocrBusy ? 'Scanning\u2026' : 'Scan for recipe'}
+              </button>
+            </div>
+          )}
+
+          <div className="hint" style={{ marginTop: 10 }}>
+            The first scan downloads the text-recognition engine (a few MB); after that it works offline.
+          </div>
+        </div>
+      )}
+
       {mode === 'text' && (
         <form onSubmit={handleImportText}>
           <div className="field">
@@ -156,6 +311,21 @@ export default function Import() {
               Paste from a caption, transcript, or screenshot text. Headings like "Ingredients:" and "Instructions:" help.
             </div>
           </div>
+
+          <div className="btn-row" style={{ marginTop: 4, marginBottom: 4 }}>
+            <button type="button" className="btn ghost" onClick={() => setMode('photo')} disabled={ocrBusy}>
+              <IconCamera /> Scan a photo instead
+            </button>
+            {needsPaste && needsPaste.video && (
+              <button type="button" className="btn ghost" onClick={scanVideoForText} disabled={ocrBusy}>
+                <IconClipboard /> Scan the video for text
+              </button>
+            )}
+          </div>
+
+          {ocrBusy && (
+            <div className="progress"><span className="spinner" /> {ocrStatus || 'Reading\u2026'} {ocrPct ? `${ocrPct}%` : ''}</div>
+          )}
 
           {error && <div className="note error">{error}</div>}
 
