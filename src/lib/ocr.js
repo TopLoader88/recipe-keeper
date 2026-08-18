@@ -159,9 +159,11 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   })
 
   const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 0
-  // sample densely (~1.4 fps) so a caption that shows for ~2s is caught in several
-  // frames - the cleaner votes across them to discard single-frame misreads.
-  const count = duration ? Math.min(28, Math.max(8, Math.round(duration * 1.4))) : 8
+  // Sample ~3 frames/sec (capped) so every burned-in caption - which typically shows for
+  // ~2-3s - is caught in several frames and any on-screen time/temp badge (often only up
+  // a second or two, e.g. a "1 HR" chip on the intro card) lands on more than one frame.
+  // The cleaner votes across frames to discard single-frame misreads.
+  const count = duration ? Math.min(90, Math.max(12, Math.round(duration * 3))) : 10
   const vw = video.videoWidth || 720
   const vh = video.videoHeight || 1280
   const canvas = document.createElement('canvas')
@@ -169,6 +171,11 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   canvas.height = vh
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   const worker = await makeWorker(() => {})
+  // Treat each frame as one uniform block of text (PSM 6). The default auto page
+  // segmentation (PSM 3) runs a layout analysis that skips most of a busy reel frame and
+  // returns only the single largest text region, so it misses the burned-in recipe
+  // captions entirely - PSM 6 reads them all (the cleaner then filters the noise).
+  try { await worker.setParameters({ tessedit_pageseg_mode: '6' }) } catch {}
   const frames = []
   try {
     for (let i = 0; i < count; i++) {

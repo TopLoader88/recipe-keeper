@@ -4,6 +4,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.14',
+    date: '2026-08-18',
+    notes: [
+      "Reading a recipe off a Facebook video is a lot more accurate. The app was quietly skipping most of a busy frame's on-screen text before - now it reads the whole frame and samples about three times as many frames, so it catches every ingredient caption and the intro details.",
+      "The ingredient list is rebuilt only from words the app actually recognizes as ingredients: uncertain reads are snapped to the closest known ingredient (a misread \"stick of duck\" becomes \"butter\"), and leftover non-ingredients are dropped by cross-checking confidence and how steadily a word stays on screen. So you get a clean list instead of stray words.",
+      "It now also captures an on-screen cook time when the video shows one (e.g. a \"1 HR\" badge). It's still a draft to review against the video - a scan takes up to a minute."
+    ]
+  },
+  {
     version: '1.13',
     date: '2026-08-17',
     notes: [

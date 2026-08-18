@@ -207,7 +207,17 @@ export default function Import() {
         setError('No on-screen text was found in the video. Try a screenshot of the recipe text instead.')
         return
       }
-      setText((prev) => (prev.trim() ? prev.trim() + '\n\n' + out : out))
+      // The video draft is a structured recipe (its own Ingredients/Directions headings)
+      // read straight off the screen - it's authoritative. Don't bury it under the share
+      // caption's prose (a blurb like "tastes like childhood"), which would otherwise be
+      // parsed as a stray ingredient; the caption is already kept as the recipe title.
+      setText((prev) => {
+        const p = (prev || '').trim()
+        const draftStructured = /\n(?:Ingredients|Directions|Instructions|Steps):/i.test('\n' + out)
+        const prevStructured = /(?:^|\n)\s*(?:Ingredients|Directions|Instructions|Steps)\s*:/i.test(p) || p.split('\n').filter((l) => l.trim()).length > 3
+        if (draftStructured && !prevStructured) return out
+        return p ? p + '\n\n' + out : out
+      })
     } catch (err) {
       setError((err && err.message) || 'The video could not be scanned. Take a screenshot of the recipe text and use "From photo".')
     } finally {

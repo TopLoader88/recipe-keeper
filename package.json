@@ -1,7 +1,7 @@
 {
   "name": "recipe-keeper",
   "private": true,
-  "version": "1.13.0",
+  "version": "1.14.0",
   "type": "module",
   "description": "Offline-first recipe library: import from websites and videos, normalize the directions, keep the original source.",
   "scripts": {
