@@ -8,7 +8,7 @@ import { getAllRecipes, getAllSources, putRecipes, getSetting, setSetting } from
 import { extractTimes, extractTemperature } from './parse.js'
 import { normalizeTemperatures } from './normalize.js'
 
-const BACKFILL_VERSION = 1
+const BACKFILL_VERSION = 2
 
 /** Everything we can legitimately read a time/temperature out of for one recipe:
     its captured caption/transcript, the oEmbed title, the raw instructions, and

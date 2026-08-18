@@ -172,6 +172,19 @@ function metaContent(doc, names) {
   return ''
 }
 
+/* Facebook and Instagram don't serve a usable public oEmbed, but their share
+   pages still carry the post caption in og:title / og:description and a
+   thumbnail in og:image. Pull just those out so an import can build from the
+   caption without scraping the whole (bot-walled) page body. */
+export function extractSocialMeta(html) {
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html')
+  return {
+    title: metaContent(doc, ['og:title', 'twitter:title']),
+    description: metaContent(doc, ['og:description', 'twitter:description', 'description']),
+    image: metaContent(doc, ['og:image', 'og:image:secure_url', 'twitter:image'])
+  }
+}
+
 /* ---------- public: HTML ---------- */
 
 /**
@@ -216,14 +229,13 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
     cookTime: node?.cookTime ?? null,
     totalTime: node?.totalTime ?? null,
     temperature,
-    nutrition,
+    nutrition: nutritionFromSchema(node?.nutrition) || nutrition,
     ingredients,
     instructions,
     keywords: node?.keywords ?? [],
     recipeCategory: node?.recipeCategory ?? [],
     recipeCuisine: node?.recipeCuisine ?? [],
     author: firstString(node?.author),
-    nutrition: node?.nutrition ? cleanNutrition(node.nutrition) : null,
     siteName: og.site || hostOf(sourceUrl),
     video: videoUrl ? detectVideo(videoUrl) : null
   }
@@ -231,13 +243,21 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
   return { raw, method, confidence, ok: Boolean(ingredients.length || (instructions && String(instructions).length > 20)) }
 }
 
-function cleanNutrition(n) {
-  const keys = ['calories', 'proteinContent', 'fatContent', 'carbohydrateContent', 'fiberContent', 'sugarContent', 'sodiumContent', 'servingSize']
-  const out = {}
-  for (const k of keys) {
-    const v = firstString(n[k])
-    if (v) out[k] = v
+/* schema.org NutritionInformation -> the app's per-serving { calories, protein,
+   carbs, fat } number block. Its values are strings like "240 kcal" / "8 g". */
+function nutritionFromSchema(n) {
+  if (!n || typeof n !== 'object') return null
+  const num = (v) => {
+    const s = firstString(v)
+    const m = s && String(s).match(/-?\d+(?:\.\d+)?/)
+    return m ? parseFloat(m[0]) : null
   }
+  const out = {}
+  const cal = num(n.calories)
+  if (cal != null && cal >= 10 && cal <= 5000) out.calories = cal
+  const p = num(n.proteinContent); if (p != null && p >= 0 && p <= 500) out.protein = p
+  const c = num(n.carbohydrateContent); if (c != null && c >= 0 && c <= 500) out.carbs = c
+  const f = num(n.fatContent); if (f != null && f >= 0 && f <= 500) out.fat = f
   return Object.keys(out).length ? out : null
 }
 
@@ -259,19 +279,35 @@ const LEADING_DECOR = /^[\s\p{Extended_Pictographic}☀-➿•·▢□◦‣\-�
    cook time on its card the same way a schema.org recipe does. */
 const DUR = String.raw`\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)\b(?:\s*(?:and\s+)?\d+\s*(?:minutes?|mins?|m)\b)?`
 
+const PREP_LABEL = String.raw`prep(?:aration)?(?:\s*time)?`
+/* Cooking verbs incl. air fryer / grill / broil so "air fry for 12 min" is caught. */
+const COOK_LABEL = String.raw`cook(?:ing)?(?:\s*time)?|bake[sd]?|baking|roast(?:ing|ed)?|air[\s-]?fry(?:er)?|air[\s-]?fried|grill(?:ed|ing)?|broil(?:ed|ing)?`
+const TOTAL_LABEL = String.raw`total(?:\s*time)?|ready|done|takes?`
+
 function labelledTime(text, label) {
-  const re = new RegExp(String.raw`\b(?:${label})\b[^\d\n]{0,14}(${DUR})`, "i")
-  const m = text.match(re)
+  // "<verb> ... for <dur>" - tolerate an oven temp or filler ("about") between the
+  // verb and the time, e.g. "bake at 375 for 25 minutes".
+  let m = text.match(new RegExp(String.raw`\b(?:${label})\b[^.!?\n]{0,60}?\bfor\s+(?:(?:about|approx(?:\.|imately)?|around|roughly|just|~)\s+){0,2}(${DUR})`, "i"))
+  if (m) return parseDuration(m[1])
+  // "<verb> <dur>" - duration right after the label with no digits in between,
+  // e.g. "cook 30 min" / "cook time: 25 minutes".
+  m = text.match(new RegExp(String.raw`\b(?:${label})\b[^\d\n]{0,14}(${DUR})`, "i"))
   return m ? parseDuration(m[1]) : null
 }
 
 /** Best-effort prep/cook/total minutes from free text that names them. */
 export function extractTimes(text) {
   const t = String(text || "")
+  let cookTime = labelledTime(t, COOK_LABEL)
+  if (cookTime == null) {
+    // "<dur> in the oven / air fryer" - duration stated before the appliance.
+    const m = t.match(new RegExp(String.raw`(${DUR})\s+(?:in|on)\s+(?:the\s+)?(?:oven|air[\s-]?fryer|grill|smoker|stove|stovetop|pan|skillet)`, "i"))
+    if (m) cookTime = parseDuration(m[1])
+  }
   return {
-    prepTime: labelledTime(t, "prep(?:aration)?"),
-    cookTime: labelledTime(t, "cook(?:ing)?|bake[sd]?|baking|roast(?:ing)?"),
-    totalTime: labelledTime(t, "total|ready|done|takes?")
+    prepTime: labelledTime(t, PREP_LABEL),
+    cookTime,
+    totalTime: labelledTime(t, TOTAL_LABEL)
   }
 }
 

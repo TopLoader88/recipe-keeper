@@ -5,7 +5,7 @@
    are importing. Turn them off in Settings and paste-import still works offline. */
 
 import { getSetting } from './db.js'
-import { parseHtmlRecipe, parseTextRecipe, markdownToText, normalizeCaption } from './parse.js'
+import { parseHtmlRecipe, parseTextRecipe, markdownToText, normalizeCaption, extractSocialMeta } from './parse.js'
 import { normalizeRecipe } from './normalize.js'
 import { detectVideo, fetchOEmbed, resolveFromOEmbed } from './video.js'
 import { newId, hostnameOf } from './format.js'
@@ -130,6 +130,34 @@ export async function fetchPage(url, { settings, signal, onProgress } = {}) {
   throw new Error(`Could not reach that page${detail}`)
 }
 
+/* Facebook and Instagram hand out no usable public oEmbed, so the caption we
+   need lives in the share page's own og: tags. A reader relay can see them even
+   though a direct fetch is walled, so fetch the page and lift just the metadata
+   (title, caption, thumbnail) rather than trying to scrape the whole body. */
+export async function fetchSocialMeta(url, { settings, signal, onProgress } = {}) {
+  let page
+  try {
+    page = await fetchPage(url, { settings, signal, onProgress })
+  } catch {
+    return null
+  }
+  if (page.kind === 'html') {
+    const meta = extractSocialMeta(page.body)
+    return (meta.description || meta.title || meta.image) ? meta : null
+  }
+  const text = markdownToText(page.body)
+  return text ? { title: '', description: text, image: '' } : null
+}
+
+/* Prefer the caption (og:description); fall back to og:title with Facebook's
+   "1.8M views \u00b7 27K reactions | " engagement prefix stripped off. */
+function pickCaption(meta) {
+  if (!meta) return ''
+  const desc = String(meta.description || '').trim()
+  if (desc) return desc
+  return String(meta.title || '').replace(/^[\d.,]+[kmb]?\s*views?\b[^|]*\|\s*/i, '').trim()
+}
+
 /** Downscales and inlines an image so the recipe still has a picture offline. */
 export async function cacheImage(url, { settings, signal } = {}) {
   if (!url) return null
@@ -239,6 +267,27 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
     }
   }
 
+  // Facebook and Instagram don't serve a public oEmbed, so oEmbed gave us
+  // nothing above. Their share pages still carry the caption in og:title /
+  // og:description (and a thumbnail in og:image) - a reader relay can see those
+  // even though the page is walled to a direct fetch. Read the caption from the
+  // page's own metadata and treat it exactly like an oEmbed caption.
+  if (video && !caption && ['facebook', 'instagram'].includes(video.platform)) {
+    onProgress?.('Reading the caption\u2026')
+    const meta = await fetchSocialMeta(clean, { settings, signal, onProgress })
+    const capText = pickCaption(meta)
+    if (capText) {
+      caption = normalizeCaption(capText)
+      oembed = {
+        title: capText,
+        author: (meta && meta.author) || '',
+        thumbnail: (meta && meta.image) || '',
+        html: '',
+        providerName: video.label
+      }
+    }
+  }
+
   // TikTok/Instagram/Facebook never expose a scrapable recipe page, and the public
   // relays are blocked or bot-walled for them — so skip the slow page fetch and
   // build straight from the caption the oEmbed handed back.
@@ -326,7 +375,21 @@ export async function importFromUrl(url, { signal, onProgress } = {}) {
     built.recipe.image = dataUrl || imageSource
   }
 
-  const needsPaste = !built.recipe.ingredients.length && !built.recipe.steps.length
+  let needsPaste = !built.recipe.ingredients.length && !built.recipe.steps.length
+
+  // A social caption is sometimes just a blurb ("Tastes like childhood" + a few
+  // hashtags) with the real recipe only spoken in the video. That yields a stray
+  // non-ingredient line rather than a recipe, so if nothing here looks cookable -
+  // no steps, no section, no measured ingredient, and not a single digit in the
+  // caption - keep the saved video but ask for the real text.
+  if (!needsPaste && captionOnly && parsed?.method === 'video oEmbed') {
+    const structured =
+      built.recipe.steps.length > 0 ||
+      built.recipe.ingredients.some((i) => i && (i.section || i.quantity != null || i.unit)) ||
+      /\d/.test(caption)
+    if (!structured) needsPaste = true
+  }
+
   if (needsPaste) {
     warnings.push(
       video

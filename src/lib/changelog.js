@@ -4,6 +4,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.8',
+    date: '2026-08-17',
+    notes: [
+      "Cook time now gets picked up from a lot more videos - captions like \u201cbake at 375 for 25 min\u201d or \u201cair fry for 12 minutes\u201d used to slip through because of the temperature sitting in the middle. Your existing recipes get re-scanned automatically (anything you edited by hand is left alone).",
+      "Logging a meal now actually moves your calorie total: the log screen lets you set calories (and protein / carbs / fat) per serving right there, so a meal counts toward your day even when the recipe didn't come with nutrition. Tick \u201cSave nutrition to this recipe\u201d to remember it next time.",
+      "Recipe imports from cooking blogs now read their calories and macros correctly instead of dropping them.",
+      "Facebook and Instagram links now pull in the caption - title, photo and any time / temperature - instead of just saving a bare link."
+    ]
+  },
+  {
     version: '1.7',
     date: '2026-08-17',
     notes: [

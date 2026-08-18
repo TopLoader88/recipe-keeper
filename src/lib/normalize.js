@@ -427,7 +427,6 @@ export function normalizeRecipe(raw = {}) {
     tags,
     notes: raw.notes || '',
     video: raw.video || null,
-    nutrition: raw.nutrition || null,
     author: collapse(stripHtml(raw.author || '')),
     rating: 0,
     favorite: false
