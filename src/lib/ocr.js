@@ -103,9 +103,38 @@ export async function recognizeImages(files, onProgress = () => {}) {
   }
 }
 
+/* Pull a structured, per-line frame out of Tesseract's block output so the cleaner
+   can use line grouping + word confidence. Falls back to splitting the flat text. */
+function frameFromData(data, i, t) {
+  const lines = []
+  const blocks = (data && data.blocks) || []
+  for (const b of blocks) {
+    for (const p of (b.paragraphs || [])) {
+      for (const ln of (p.lines || [])) {
+        const text = String(ln.text || '').replace(/\s+/g, ' ').trim()
+        if (!text) continue
+        const words = (ln.words || []).map((w) => ({
+          t: w.text, c: Math.round(w.confidence || 0),
+          x0: w.bbox && w.bbox.x0, y0: w.bbox && w.bbox.y0, x1: w.bbox && w.bbox.x1, y1: w.bbox && w.bbox.y1
+        }))
+        lines.push({ text, c: Math.round(ln.confidence || 0), y0: (ln.bbox && ln.bbox.y0) || 0, words })
+      }
+    }
+  }
+  if (!lines.length && data && data.text) {
+    String(data.text).split('\n').forEach((text, k) => {
+      const s = text.trim()
+      if (s) lines.push({ text: s, c: 0, y0: k, words: [] })
+    })
+  }
+  return { i, t, text: (data && data.text) || '', lines }
+}
+
 /* Read the recipe straight off a video's burned-in caption text by sampling a
-   frame roughly every second, boosting contrast, OCR-ing each, then cleaning the
-   noisy multi-frame text into a de-duplicated draft (see videotext.js).
+   frame roughly every ~0.7s, boosting contrast, OCR-ing each into structured lines,
+   then cleaning the noisy multi-frame text into a de-duplicated draft (see
+   videotext.js - it corrects reads against a 500k-recipe cooking lexicon and never
+   invents words).
 
    This only works when the browser can actually read the video's pixels, i.e. the
    file is same-origin or served with permissive CORS (e.g. Facebook's extracted
@@ -115,6 +144,7 @@ export async function recognizeImages(files, onProgress = () => {}) {
 export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   if (!videoUrl) throw new Error('No video to scan.')
   const TAINTED = 'This video is protected, so its frames cannot be read. Take a screenshot of the recipe text and use “From photo”.'
+  const THIN = 'Could not read enough of the recipe from the video. Take a screenshot of the recipe text and use “From photo”.'
   const video = document.createElement('video')
   video.crossOrigin = 'anonymous'
   video.muted = true
@@ -129,7 +159,9 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
   })
 
   const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 0
-  const count = duration ? Math.min(24, Math.max(6, Math.round(duration))) : 6
+  // sample densely (~1.4 fps) so a caption that shows for ~2s is caught in several
+  // frames - the cleaner votes across them to discard single-frame misreads.
+  const count = duration ? Math.min(28, Math.max(8, Math.round(duration * 1.4))) : 8
   const vw = video.videoWidth || 720
   const vh = video.videoHeight || 1280
   const canvas = document.createElement('canvas')
@@ -158,16 +190,19 @@ export async function recognizeVideoFrames(videoUrl, onProgress = () => {}) {
       }
       let data
       try {
-        const res = await worker.recognize(canvas)
+        const res = await worker.recognize(canvas, {}, { blocks: true })
         data = res.data
       } catch (e) {
         throw new Error(TAINTED)
       }
-      const text = data && data.text ? data.text.trim() : ''
-      if (text) frames.push(text)
+      const frame = frameFromData(data, i, t)
+      if (frame.lines.length) frames.push(frame)
     }
     onProgress(0.98, 'Cleaning up the text…')
-    const draft = cleanVideoText(frames)
+    const draft = await cleanVideoText(frames)
+    // don't fabricate a recipe from a couple of noise fragments - steer to screenshot
+    const steps = (draft.match(/^- /gm) || []).length
+    if (steps < 2) throw new Error(THIN)
     onProgress(1, 'Done')
     return draft
   } finally {

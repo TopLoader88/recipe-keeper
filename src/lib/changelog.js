@@ -4,6 +4,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.13',
+    date: '2026-08-17',
+    notes: [
+      "Reading a recipe off a Facebook video is far more accurate. Every word is now checked against a cooking dictionary learned from 500,000 real recipes, so the app fixes garbled reads, splits mashed-together words (\"dicedonion\" \u2192 \"diced onion\"), and drops leftover noise instead of inventing words that were never in the video.",
+      "It samples more frames and cross-checks them, so a caption that only flashes for a second is caught and one-off misreads are voted out. You still get a draft to review against the video.",
+      "If a video's on-screen text is too stylized to read cleanly, the app now tells you and points you to \u201cFrom photo\u201d instead of saving a made-up recipe."
+    ]
+  },
+  {
     version: '1.12',
     date: '2026-08-17',
     notes: [
