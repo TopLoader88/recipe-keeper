@@ -4,6 +4,13 @@
 
 export const CHANGELOG = [
   {
+    version: '1.9',
+    date: '2026-08-17',
+    notes: [
+      "Focused the app on what it does best - capturing and organizing your recipes. The Food log tab and per-recipe calorie tracking have been retired so the app stays simple and fast."
+    ]
+  },
+  {
     version: '1.8',
     date: '2026-08-17',
     notes: [

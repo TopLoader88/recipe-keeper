@@ -4,7 +4,6 @@
    sits alongside the cached source. */
 
 import { parseNumber, formatNumber, formatQuantity, replaceVulgarFractions, parseServings, parseDuration } from './format.js'
-import { cleanNutrition } from './nutrition.js'
 
 /* ---------- units ---------- */
 
@@ -421,7 +420,6 @@ export function normalizeRecipe(raw = {}) {
     cookMinutes,
     totalMinutes,
     temperature: cleanTemperature(raw.temperature),
-    nutrition: cleanNutrition(raw.nutrition),
     ingredients,
     steps,
     tags,

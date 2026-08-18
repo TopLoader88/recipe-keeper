@@ -3,7 +3,6 @@ import { getRecipe, putRecipe } from '../lib/db.js'
 import { blankRecipe } from '../lib/importer.js'
 import { ingredientsToText, stepsToText, textToIngredients, textToSteps, normalizeTemperatures } from '../lib/normalize.js'
 import { extractTemperature } from '../lib/parse.js'
-import { cleanNutrition } from '../lib/nutrition.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
 import { detectVideo } from '../lib/video.js'
 import { useRouter } from '../hooks/useRouter.js'
@@ -20,10 +19,6 @@ export default function Editor({ id }) {
   const [prepMinutes, setPrepMinutes] = useState('')
   const [cookMinutes, setCookMinutes] = useState('')
   const [temperature, setTemperature] = useState('')
-  const [calories, setCalories] = useState('')
-  const [protein, setProtein] = useState('')
-  const [carbs, setCarbs] = useState('')
-  const [fat, setFat] = useState('')
   const [ingredientsText, setIngredientsText] = useState('')
   const [stepsText, setStepsText] = useState('')
   const [tags, setTags] = useState('')
@@ -50,10 +45,6 @@ export default function Editor({ id }) {
       setPrepMinutes(r.prepMinutes != null ? String(r.prepMinutes) : '')
       setCookMinutes(r.cookMinutes != null ? String(r.cookMinutes) : '')
       setTemperature(r.temperature || '')
-      setCalories(r.nutrition?.calories != null ? String(r.nutrition.calories) : '')
-      setProtein(r.nutrition?.protein != null ? String(r.nutrition.protein) : '')
-      setCarbs(r.nutrition?.carbs != null ? String(r.nutrition.carbs) : '')
-      setFat(r.nutrition?.fat != null ? String(r.nutrition.fat) : '')
       setIngredientsText(ingredientsToText(r.ingredients))
       setStepsText(stepsToText(r.steps))
       setTags((r.tags || []).join(', '))
@@ -85,7 +76,6 @@ export default function Editor({ id }) {
       cookMinutes: cookNum && Number.isFinite(cookNum) ? cookNum : null,
       totalMinutes: (prepNum || 0) + (cookNum || 0) || null,
       temperature: tempStr || null,
-      nutrition: cleanNutrition({ calories, protein, carbs, fat }),
       ingredients,
       steps,
       tags: parsedTags.slice(0, 12),
@@ -177,25 +167,6 @@ export default function Editor({ id }) {
           </div>
         </div>
 
-        <div className="row">
-          <div className="field">
-            <label>Calories</label>
-            <input className="input" type="number" min="0" step="any" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="450" />
-          </div>
-          <div className="field">
-            <label>Protein (g)</label>
-            <input className="input" type="number" min="0" step="any" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="30" />
-          </div>
-          <div className="field">
-            <label>Carbs (g)</label>
-            <input className="input" type="number" min="0" step="any" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="40" />
-          </div>
-          <div className="field">
-            <label>Fat (g)</label>
-            <input className="input" type="number" min="0" step="any" value={fat} onChange={(e) => setFat(e.target.value)} placeholder="15" />
-          </div>
-        </div>
-        <div className="hint" style={{ marginTop: -6 }}>Per serving — powers calorie tracking in the food log (optional).</div>
 
         <div className="field">
           <label>Ingredients</label>

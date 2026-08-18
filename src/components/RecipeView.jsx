@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getRecipe, getSource, putRecipe, deleteRecipe, getAllGrocery, putGroceryBulk, putMealPlan, putDiary } from '../lib/db.js'
+import { getRecipe, getSource, putRecipe, deleteRecipe, getAllGrocery, putGroceryBulk, putMealPlan } from '../lib/db.js'
 import { formatIngredient, normalizeTemperatures } from '../lib/normalize.js'
 import { extractTemperature } from '../lib/parse.js'
-import { perServingNutrition, scaleNutrition, cleanNutrition, formatCalories, formatGrams, MEAL_TYPES, mealLabel } from '../lib/nutrition.js'
-import { syncLogEntry } from '../lib/nutritionSync.js'
 import { formatMinutes, formatNumber } from '../lib/format.js'
 import { shareRecipe } from '../lib/share.js'
 import { scheduleAutoBackup } from '../lib/backup.js'
@@ -15,7 +13,7 @@ import ConfirmSheet from './ConfirmSheet.jsx'
 import {
   IconChevronLeft, IconClock, IconUsers, IconEdit, IconShare,
   IconTrash, IconHeart, IconHeartFilled, IconMinus, IconPlus, IconPlay, IconX,
-  IconCart, IconCalendar, IconThermometer, IconFlame
+  IconCart, IconCalendar, IconThermometer
 } from './icons.jsx'
 
 export default function RecipeView({ id }) {
@@ -28,14 +26,6 @@ export default function RecipeView({ id }) {
   const [editingTime, setEditingTime] = useState(false)
   const [editingTemp, setEditingTemp] = useState(false)
   const [planOpen, setPlanOpen] = useState(false)
-  const [logOpen, setLogOpen] = useState(false)
-  const [logServings, setLogServings] = useState(1)
-  const [logDate, setLogDate] = useState(toISODate(new Date()))
-  const [logCals, setLogCals] = useState('')
-  const [logProtein, setLogProtein] = useState('')
-  const [logCarbs, setLogCarbs] = useState('')
-  const [logFat, setLogFat] = useState('')
-  const [logSaveToRecipe, setLogSaveToRecipe] = useState(false)
   const [checked, setChecked] = useState({})
   const [doneSteps, setDoneSteps] = useState({})
   const [showSheet, setShowSheet] = useState(false)
@@ -103,7 +93,6 @@ export default function RecipeView({ id }) {
 
   const servings = recipe.servings
   const scaledServings = servings ? servings * scale : null
-  const nutrition = perServingNutrition(recipe)
 
   async function toggleFavorite() {
     const updated = { ...recipe, favorite: !recipe.favorite }
@@ -193,42 +182,6 @@ export default function RecipeView({ id }) {
     const gid = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'm-' + Math.random().toString(36).slice(2)
     await putMealPlan({ id: gid, date: dateIso, slot, recipeId: id, title: recipe.title, image: recipe.image || null, createdAt: Date.now() })
     showToast(`Planned for ${slotLabel(slot)}`)
-  }
-
-  function openLog() {
-    setLogServings(scaledServings ? Math.round(scaledServings * 100) / 100 : 1)
-    setLogDate(toISODate(new Date()))
-    const per = perServingNutrition(recipe)
-    setLogCals(per && per.calories != null ? String(per.calories) : '')
-    setLogProtein(per && per.protein != null ? String(per.protein) : '')
-    setLogCarbs(per && per.carbs != null ? String(per.carbs) : '')
-    setLogFat(per && per.fat != null ? String(per.fat) : '')
-    setLogSaveToRecipe(!per)
-    setLogOpen(true)
-  }
-
-  async function logToDiary(mealKey) {
-    setLogOpen(false)
-    const servings = Number(logServings) || 1
-    const num = (v) => { const n = Number(v); return v !== '' && Number.isFinite(n) && n >= 0 ? n : null }
-    const per = { calories: num(logCals), protein: num(logProtein), carbs: num(logCarbs), fat: num(logFat) }
-    const totals = scaleNutrition(per, servings) || { calories: null, protein: null, carbs: null, fat: null }
-    const gid = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'd-' + Math.random().toString(36).slice(2)
-    const entry = {
-      id: gid, date: logDate, mealType: mealKey, recipeId: id, title: recipe.title,
-      servings,
-      calories: totals.calories, protein: totals.protein, carbs: totals.carbs, fat: totals.fat,
-      createdAt: Date.now()
-    }
-    await putDiary(entry)
-    syncLogEntry(entry)
-    const cleaned = cleanNutrition(per)
-    if (logSaveToRecipe && cleaned) {
-      const next = { ...recipe, nutrition: cleaned, updatedAt: Date.now() }
-      await putRecipe(next)
-      setRecipe(next)
-    }
-    showToast(totals.calories != null ? `Logged ${formatCalories(totals.calories)} cal to ${mealLabel(mealKey)}` : `Logged to ${mealLabel(mealKey)}`)
   }
 
   function toggleIngredient(idx) {
@@ -411,24 +364,6 @@ export default function RecipeView({ id }) {
         )}
       </div>
 
-      {nutrition && (
-        <div className="card nutrition-card">
-          <div className="nutrition-head">
-            <h2 className="section-title" style={{ margin: 0 }}>Nutrition</h2>
-            <span className="muted small">per serving</span>
-          </div>
-          <div className="macros">
-            <div className="macro"><strong>{formatCalories(nutrition.calories)}</strong><span>cal</span></div>
-            <div className="macro"><strong>{formatGrams(nutrition.protein)}</strong><span>protein</span></div>
-            <div className="macro"><strong>{formatGrams(nutrition.carbs)}</strong><span>carbs</span></div>
-            <div className="macro"><strong>{formatGrams(nutrition.fat)}</strong><span>fat</span></div>
-          </div>
-          {scaledServings && nutrition.calories != null && (
-            <p className="muted small nutrition-total">{formatNumber(scaledServings)} servings is about {formatCalories(scaleNutrition(nutrition, scaledServings).calories)} cal total</p>
-          )}
-        </div>
-      )}
-
       {/* Ingredients */}
       {recipe.ingredients?.length > 0 && (
         <>
@@ -515,7 +450,6 @@ export default function RecipeView({ id }) {
 
       {/* Action buttons */}
       <div className="btn-row" style={{ marginTop: 20 }}>
-        <button className="btn" onClick={openLog}><IconFlame /> Log</button>
         <button className="btn" onClick={() => setPlanOpen(true)}><IconCalendar /> Plan</button>
         <button className="btn" onClick={() => navigate(`/recipe/${id}/edit`)}><IconEdit /> Edit</button>
         <button className="btn danger" onClick={() => setConfirmDelete(true)}><IconTrash /> Delete</button>
@@ -575,54 +509,6 @@ export default function RecipeView({ id }) {
               })}
             </div>
             <button className="sheet-item" onClick={() => setPlanOpen(false)}><IconX /> <div>Cancel</div></button>
-          </div>
-        </div>
-      )}
-
-      {logOpen && (
-        <div className="sheet-backdrop" onClick={() => setLogOpen(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="grabber" />
-            <h2>Log to food diary</h2>
-            <div className="log-form">
-              <div className="log-row">
-                <span className="log-label">Servings eaten</span>
-                <div className="log-stepper">
-                  <button className="btn icon small" onClick={() => setLogServings((v) => Math.max(0.25, Math.round((Number(v) - 0.5) * 100) / 100))}><IconMinus /></button>
-                  <input className="input serving-input" type="number" min="0" step="any" value={logServings} onChange={(e) => setLogServings(e.target.value)} />
-                  <button className="btn icon small" onClick={() => setLogServings((v) => Math.round((Number(v) + 0.5) * 100) / 100)}><IconPlus /></button>
-                </div>
-              </div>
-              <div className="log-row">
-                <span className="log-label">Date</span>
-                <input className="input log-date" type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} />
-              </div>
-              <div className="log-row">
-                <span className="log-label">Calories <span className="log-sub">/ serving</span></span>
-                <input className="input log-num" type="number" min="0" step="any" inputMode="decimal" placeholder="e.g. 250" value={logCals} onChange={(e) => setLogCals(e.target.value)} />
-              </div>
-              <div className="log-macros">
-                <label className="log-macro"><span>Protein</span><input className="input" type="number" min="0" step="any" placeholder="g" value={logProtein} onChange={(e) => setLogProtein(e.target.value)} /></label>
-                <label className="log-macro"><span>Carbs</span><input className="input" type="number" min="0" step="any" placeholder="g" value={logCarbs} onChange={(e) => setLogCarbs(e.target.value)} /></label>
-                <label className="log-macro"><span>Fat</span><input className="input" type="number" min="0" step="any" placeholder="g" value={logFat} onChange={(e) => setLogFat(e.target.value)} /></label>
-              </div>
-              {logCals !== '' && (Number(logServings) || 0) > 0 ? (
-                <p className="muted small">Logs {formatCalories((Number(logCals) || 0) * (Number(logServings) || 0))} cal total for {formatNumber(Number(logServings) || 0)} {(Number(logServings) || 0) === 1 ? 'serving' : 'servings'}.</p>
-              ) : (
-                <p className="muted small">Add calories per serving so this meal counts toward your daily total.</p>
-              )}
-              <label className="log-save">
-                <input type="checkbox" checked={logSaveToRecipe} onChange={(e) => setLogSaveToRecipe(e.target.checked)} />
-                <span>Save nutrition to this recipe</span>
-              </label>
-              <span className="log-label">Add to</span>
-              <div className="plan-picker-slots">
-                {MEAL_TYPES.map((m) => (
-                  <button key={m.key} className="chip" onClick={() => logToDiary(m.key)}>{m.emoji} {m.label}</button>
-                ))}
-              </div>
-            </div>
-            <button className="sheet-item" onClick={() => setLogOpen(false)}><IconX /> <div>Cancel</div></button>
           </div>
         </div>
       )}

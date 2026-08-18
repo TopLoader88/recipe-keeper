@@ -9,7 +9,6 @@
 import { stripHtml, parseIngredient } from './normalize.js'
 import { parseDuration } from './format.js'
 import { detectVideo } from './video.js'
-import { extractNutrition } from './nutrition.js'
 
 /* ---------- JSON-LD ---------- */
 
@@ -212,7 +211,6 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
   const instructions = node?.recipeInstructions ?? node?.instructions ?? []
   const tempBlob = [firstString(node?.description) || og.description].concat(listOf(instructions).map((v) => (typeof v === 'string' ? v : v?.text || v?.name || ''))).join('  ')
   const temperature = extractTemperature(tempBlob)
-  const nutrition = extractNutrition(tempBlob)
 
   const videoNode = node?.video ? (Array.isArray(node.video) ? node.video[0] : node.video) : null
   const videoUrl =
@@ -229,7 +227,6 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
     cookTime: node?.cookTime ?? null,
     totalTime: node?.totalTime ?? null,
     temperature,
-    nutrition: nutritionFromSchema(node?.nutrition) || nutrition,
     ingredients,
     instructions,
     keywords: node?.keywords ?? [],
@@ -241,24 +238,6 @@ export function parseHtmlRecipe(html, sourceUrl = '') {
   }
 
   return { raw, method, confidence, ok: Boolean(ingredients.length || (instructions && String(instructions).length > 20)) }
-}
-
-/* schema.org NutritionInformation -> the app's per-serving { calories, protein,
-   carbs, fat } number block. Its values are strings like "240 kcal" / "8 g". */
-function nutritionFromSchema(n) {
-  if (!n || typeof n !== 'object') return null
-  const num = (v) => {
-    const s = firstString(v)
-    const m = s && String(s).match(/-?\d+(?:\.\d+)?/)
-    return m ? parseFloat(m[0]) : null
-  }
-  const out = {}
-  const cal = num(n.calories)
-  if (cal != null && cal >= 10 && cal <= 5000) out.calories = cal
-  const p = num(n.proteinContent); if (p != null && p >= 0 && p <= 500) out.protein = p
-  const c = num(n.carbohydrateContent); if (c != null && c >= 0 && c <= 500) out.carbs = c
-  const f = num(n.fatContent); if (f != null && f >= 0 && f <= 500) out.fat = f
-  return Object.keys(out).length ? out : null
 }
 
 function hostOf(url) {
@@ -376,7 +355,6 @@ export function parseTextRecipe(input, sourceUrl = '') {
   const text = stripHtml(String(input || ''))
   const times = extractTimes(text)
   const temperature = extractTemperature(text)
-  const nutrition = extractNutrition(text)
   const rawLines = text.split(/\r?\n/).map((l) => l.replace(LEADING_DECOR, '').trim())
 
   const tags = []
@@ -445,7 +423,6 @@ export function parseTextRecipe(input, sourceUrl = '') {
       cookTime: times.cookTime,
       totalTime: times.totalTime,
       temperature,
-      nutrition,
       ingredients,
       instructions: steps,
       notes: notes.join('\n'),
