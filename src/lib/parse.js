@@ -476,16 +476,38 @@ export function normalizeCaption(caption) {
   // Break a "1. do this 2. do that" run of numbered steps onto separate lines.
   t = t.replace(/\s+(?=(?:step\s*)?\d{1,2}\s*[.)]\s+[A-Za-z])/gi, '\n')
 
+  // Social captions routinely cram a whole ingredient list onto one line with
+  // "-" (or •) bullets - "-1 can SPAM -2 eggs -¼ cup flour" - which otherwise
+  // reads as one giant mashed-together ingredient. Break those into one per line,
+  // then apply the comma split below. A "-" only counts as a bullet when it
+  // starts the line or has a space before it, so hyphenated names ("gluten-free")
+  // and ranges ("5-6 min") are never split; an inline list (first item without a
+  // leading dash) is caught by requiring two or more "-<quantity>" bullets.
+  const FRAC = '½¼¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒'
+  const BULLET = '-–—•*·▢□◦‣'
+  const bulletStart = new RegExp(`^[${BULLET}]\\s*`)
+  const dashSplit = new RegExp(`\\s+[${BULLET}](?=\\s*\\S)`)
+  const qtyBullet = new RegExp(`(?:^|\\s)[${BULLET}](?=\\s*(?:\\d|[${FRAC}]))`, 'g')
+  const commaRe = new RegExp(`\\s*,\\s*(?=(?:\\d|[${FRAC}]|a |an |one |two |three |four |half ))`, 'i')
+
   // Split a comma-separated quantity list ("16oz cheese, 2 cans chili, 1 tsp salt")
   // into one ingredient per line. Only break before a comma that is followed by a
   // quantity, so a note like "flour, sifted" stays on its own line intact.
   const out = []
+  const commaSplit = (line) => {
+    const parts = line.split(commaRe)
+    if (parts.length > 1) { for (const p of parts) { const q = p.trim(); if (q) out.push(q) } }
+    else out.push(line)
+  }
   for (const rawLine of t.split('\n')) {
     const line = rawLine.trim()
     if (!line) continue
-    const parts = line.split(/\s*,\s*(?=(?:\d|½|¼|¾|⅓|⅔|⅛|a |an |one |two |three |four |half ))/i)
-    if (parts.length > 1) for (const p of parts) { const q = p.trim(); if (q) out.push(q) }
-    else out.push(line)
+    if (bulletStart.test(line) || (line.match(qtyBullet) || []).length >= 2) {
+      const body = line.replace(bulletStart, '')
+      for (const item of body.split(dashSplit)) { const it = item.trim(); if (it) commaSplit(it) }
+    } else {
+      commaSplit(line)
+    }
   }
   return out.join('\n')
 }

@@ -4,6 +4,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.16',
+    date: '2026-08-19',
+    notes: [
+      "Importing a recipe from a TikTok, Reels or Facebook caption is more accurate when the caption crams the whole ingredient list onto one line with dashes - like \u201c-1 can SPAM -2 eggs -\u00bc cup flour.\u201d The app used to mash that into one or two giant run-on ingredients; now it splits them into a clean, separate line each, with the amounts read correctly.",
+      "The splitting is careful: hyphenated names like \u201cgluten-free\u201d or \u201chalf-and-half\u201d and ranges like \u201c5-6 cloves\u201d are left intact, and comma-separated lists still work as before.",
+      "Note: some videos put the recipe only in the clip itself (the caption is just hashtags). Those can't be read from the caption - open the video and paste the steps, or use \u201cScan a photo\u201d to capture the on-screen text."
+    ]
+  },
+  {
     version: '1.15',
     date: '2026-08-19',
     notes: [
